@@ -8,7 +8,7 @@ Este proyecto se desarrolla como parte del módulo **Conceptos avanzados de base
 
 El objetivo es diseñar e implementar una solución documental en **MongoDB** para almacenar, consultar y analizar información histórica de afluencia de la Red del Metro de la Ciudad de México.
 
-El conjunto de datos contiene registros diarios de afluencia desde **2021 hasta marzo de 2026**, correspondientes a las **195 estaciones del Metro**, sus respectivas líneas y las categorías de tipo de pago registradas durante el periodo.
+El conjunto de datos contiene registros diarios de afluencia desde **2021 hasta abril de 2026**, correspondientes a las **195 estaciones del Metro**, sus respectivas líneas y las categorías de tipo de pago registradas durante el periodo.
 
 El proyecto busca aprovechar las características de MongoDB para realizar consultas y agregaciones, analizar patrones temporales, diseñar una estrategia de indexación basada en patrones reales de consulta, implementar reglas de validación y posteriormente incorporar información geográfica de las estaciones.
 
@@ -46,7 +46,7 @@ El proyecto no pretende determinar directamente frecuencias de trenes, capacidad
 
 Inicialmente se plantean las siguientes preguntas:
 
-1. ¿Cómo ha evolucionado la afluencia del Metro de la Ciudad de México entre 2021 y marzo de 2026, tanto a nivel general como por línea?
+1. ¿Cómo ha evolucionado la afluencia del Metro de la Ciudad de México entre 2021 y abril de 2026, tanto a nivel general como por línea?
 
 2. ¿Qué líneas y estaciones presentan los mayores niveles de afluencia total y promedio en distintos periodos?
 
@@ -84,7 +84,7 @@ Durante el periodo analizado la categoría **Boleto deja de aparecer en los regi
 
 ## Componente temporal
 
-El conjunto de datos contiene observaciones diarias desde 2021 hasta marzo de 2026.
+El conjunto de datos contiene observaciones diarias desde 2021 hasta abril de 2026.
 
 Durante el modelado en MongoDB se evaluará almacenar `fecha` utilizando el tipo BSON `Date`, permitiendo realizar consultas mediante intervalos temporales y construir indicadores diarios, mensuales y anuales.
 

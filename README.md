@@ -978,4 +978,614 @@ unidad geoespacial
 
 Con esta decisión se considera validada la estructura general del modelo contra las preguntas y patrones de consulta actualmente definidos.
 
+# Modelo documental propuesto
+
+Una vez analizadas las preguntas del proyecto y validados los principales patrones de consulta, se define una primera versión formal del modelo documental.
+
+La solución utilizará dos colecciones principales:
+
+```text
+afluencia_diaria
+estaciones
+```
+
+La colección `afluencia_diaria` contendrá las mediciones temporales, mientras que `estaciones` contendrá los metadatos relativamente estables de cada estación física.
+
+---
+
+## Arquitectura general
+
+```text
+                   estaciones
+          ┌────────────────────────┐
+          │ _id                    │
+          │ nombre                 │
+          │ lineas[]               │
+          │ ubicacion              │
+          │   ├── type             │
+          │   └── coordinates[]    │
+          └───────────┬────────────┘
+                      │
+                      │ estacion_id
+                      │
+                      ▼
+               afluencia_diaria
+          ┌────────────────────────┐
+          │ _id                    │
+          │ fecha                  │
+          │ estacion_id            │
+          │ linea                  │
+          │ afluencia              │
+          │   ├── boleto           │
+          │   ├── prepago          │
+          │   ├── gratuidad        │
+          │   └── total            │
+          └────────────────────────┘
+```
+
+La relación entre ambas colecciones se realizará mediante:
+
+```text
+afluencia_diaria.estacion_id
+              ↓
+       estaciones._id
+```
+
+MongoDB no impondrá una llave foránea como ocurriría en un modelo relacional. La consistencia de esta referencia deberá conservarse durante la transformación y carga de los datos.
+
+---
+
+# Colección `afluencia_diaria`
+
+## Propósito
+
+Almacenar las mediciones históricas de afluencia del Metro.
+
+Cada documento representará:
+
+> **La afluencia diaria registrada en una combinación específica estación-línea, incluyendo su composición por tipo de acceso.**
+
+Por lo tanto, el grano de almacenamiento será:
+
+```text
+fecha + estacion_id + linea
+```
+
+El conjunto original contiene 1,138,410 filas porque cada combinación estación-línea-fecha aparece una vez por cada uno de los tres tipos de pago.
+
+Al integrar dichas categorías dentro de un mismo documento se espera obtener:
+
+```text
+1,946 fechas
+× 195 combinaciones estación-línea
+=
+379,470 documentos
+```
+
+---
+
+## Campos de `afluencia_diaria`
+
+| Campo                 | Tipo BSON propuesto | Presencia              | Propósito                                       |
+| --------------------- | ------------------- | ---------------------- | ----------------------------------------------- |
+| `_id`                 | `objectId`          | Obligatorio automático | Identificador único del documento               |
+| `fecha`               | `date`              | Obligatorio            | Fecha de la observación                         |
+| `estacion_id`         | `string`            | Obligatorio            | Referencia a la estación física                 |
+| `linea`               | `string`            | Obligatorio            | Línea a la que corresponde la medición          |
+| `afluencia`           | `object`            | Obligatorio            | Subdocumento con la composición de la afluencia |
+| `afluencia.boleto`    | `int`               | Obligatorio            | Número de accesos mediante boleto               |
+| `afluencia.prepago`   | `int`               | Obligatorio            | Número de accesos mediante prepago              |
+| `afluencia.gratuidad` | `int`               | Obligatorio            | Número de accesos mediante gratuidad            |
+| `afluencia.total`     | `int`               | Obligatorio            | Suma de los tres tipos de acceso                |
+
+Los cuatro valores de afluencia deberán ser iguales o mayores que cero.
+
+---
+
+## Documento representativo
+
+```javascript
+{
+  _id: ObjectId("..."),
+
+  fecha: ISODate("2025-01-15T00:00:00Z"),
+
+  estacion_id: "balderas",
+
+  linea: "1",
+
+  afluencia: {
+    boleto: 0,
+    prepago: 15243,
+    gratuidad: 814,
+    total: 16057
+  }
+}
+```
+
+Los valores anteriores son únicamente ilustrativos para representar la estructura del documento y no deberán utilizarse como resultados reales del conjunto de datos.
+
+---
+
+# Decisión sobre `fecha`, `mes` y `anio`
+
+El archivo original contiene:
+
+```text
+fecha
+mes
+anio
+```
+
+En MongoDB se propone conservar únicamente:
+
+```javascript
+fecha: ISODate("2025-01-15T00:00:00Z")
+```
+
+utilizando BSON `Date`.
+
+Los campos `mes` y `anio` podrán obtenerse posteriormente a partir de `fecha` mediante operadores temporales de MongoDB.
+
+Conceptualmente:
+
+```text
+fecha BSON Date
+       ↓
+operadores temporales
+       ↓
+año / mes / día
+```
+
+Esta decisión evita almacenar información temporal redundante y elimina la posibilidad de inconsistencias como:
+
+```text
+fecha = 2025-01-15
+mes   = Agosto
+anio  = 2024
+```
+
+Por lo tanto:
+
+```text
+fecha
+```
+
+será la fuente temporal principal del documento.
+
+---
+
+# Decisión sobre los tipos de pago
+
+En el conjunto original los tipos de pago aparecen como filas independientes:
+
+```text
+Boleto
+Prepago
+Gratuidad
+```
+
+En el modelo documental se integrarán dentro del subdocumento:
+
+```javascript
+afluencia: {
+  boleto: ...,
+  prepago: ...,
+  gratuidad: ...,
+  total: ...
+}
+```
+
+Esta decisión se justifica porque los tres valores:
+
+* pertenecen a la misma fecha;
+* pertenecen a la misma combinación estación-línea;
+* representan componentes de una misma medida de afluencia;
+* son utilizados conjuntamente para responder las preguntas principales del proyecto.
+
+Además, la pregunta sobre gratuidad requiere calcular:
+
+```text
+SUM(afluencia.gratuidad)
+──────────────────────── × 100
+  SUM(afluencia.total)
+```
+
+por lo que mantener ambos componentes dentro de una misma observación simplifica el análisis.
+
+---
+
+# Decisión sobre `afluencia.total`
+
+El campo:
+
+```text
+afluencia.total
+```
+
+puede obtenerse matemáticamente mediante:
+
+```text
+boleto + prepago + gratuidad
+```
+
+Por lo tanto, podría calcularse dinámicamente en cada consulta.
+
+Sin embargo, se propone **materializarlo dentro de cada documento**.
+
+La decisión se justifica porque la afluencia total aparece de forma recurrente en las principales preguntas del proyecto:
+
+* evolución temporal por línea;
+* evolución temporal por estación;
+* ranking de estaciones;
+* máximos y mínimos;
+* porcentaje de gratuidad.
+
+La estructura será:
+
+```javascript
+afluencia: {
+  boleto: 0,
+  prepago: 15243,
+  gratuidad: 814,
+  total: 16057
+}
+```
+
+Esto evita recalcular la suma en cada consulta.
+
+### Costo de la decisión
+
+Al ser un campo derivado existe una posible inconsistencia si:
+
+```text
+total ≠ boleto + prepago + gratuidad
+```
+
+Por este motivo se implementará una prueba de integridad que compruebe:
+
+```text
+afluencia.total
+=
+afluencia.boleto
++
+afluencia.prepago
++
+afluencia.gratuidad
+```
+
+El `$jsonSchema` podrá controlar los tipos y que los valores no sean negativos, mientras que la consistencia aritmética se verificará mediante una consulta o pipeline específico.
+
+Dado que el conjunto contiene principalmente información histórica y no se espera una actualización continua de estos registros, el costo de mantener el campo derivado es reducido frente a la utilidad que ofrece para las consultas recurrentes.
+
+---
+
+# Colección `estaciones`
+
+## Propósito
+
+Almacenar información estable de las **163 estaciones físicas** de la Red del Metro.
+
+Esta información se separa de `afluencia_diaria` porque datos como nombre, líneas y coordenadas no cambian diariamente y no es necesario repetirlos en cientos de miles de observaciones.
+
+Cada documento representará:
+
+> **Una estación física de la Red del Metro de la Ciudad de México.**
+
+---
+
+## Campos de `estaciones`
+
+| Campo                   | Tipo BSON propuesto | Presencia                             | Propósito                             |
+| ----------------------- | ------------------- | ------------------------------------- | ------------------------------------- |
+| `_id`                   | `string`            | Obligatorio                           | Identificador estable de la estación  |
+| `nombre`                | `string`            | Obligatorio                           | Nombre de la estación                 |
+| `lineas`                | `array<string>`     | Obligatorio                           | Líneas asociadas a la estación física |
+| `ubicacion`             | `object`            | Pendiente inicialmente                | Ubicación GeoJSON                     |
+| `ubicacion.type`        | `string`            | Obligatorio cuando exista `ubicacion` | Tipo de geometría GeoJSON             |
+| `ubicacion.coordinates` | `array<double>`     | Obligatorio cuando exista `ubicacion` | Longitud y latitud                    |
+
+La ubicación se mantendrá inicialmente como un campo pendiente hasta obtener las coordenadas de las estaciones de una fuente confiable.
+
+---
+
+# Identificador de estación
+
+La colección `estaciones` utilizará provisionalmente un identificador textual estable.
+
+Ejemplo:
+
+```text
+balderas
+```
+
+De esta manera:
+
+```javascript
+{
+  _id: "balderas",
+  nombre: "Balderas"
+}
+```
+
+y las mediciones utilizarán:
+
+```javascript
+{
+  estacion_id: "balderas"
+}
+```
+
+Este identificador permitirá relacionar las colecciones de forma legible y reproducible.
+
+Durante la transformación de los datos deberá establecerse una regla determinística para generar estos identificadores a partir de los nombres originales y garantizar que una misma estación física siempre obtenga el mismo valor.
+
+---
+
+# Arreglo `lineas`
+
+Una estación física puede pertenecer a una o varias líneas.
+
+Por ejemplo, conceptualmente:
+
+```javascript
+{
+  _id: "balderas",
+  nombre: "Balderas",
+  lineas: ["1", "3"]
+}
+```
+
+El uso de un arreglo se justifica porque:
+
+* las líneas constituyen un conjunto pequeño;
+* pertenecen naturalmente a la estación;
+* son metadatos estables;
+* no necesitan una colección independiente para responder las preguntas actuales.
+
+Una estación perteneciente únicamente a una línea tendría:
+
+```javascript
+lineas: ["1"]
+```
+
+mientras que una estación de correspondencia podría tener:
+
+```javascript
+lineas: ["1", "3"]
+```
+
+Si posteriormente se crea un índice sobre este campo, deberá considerarse que MongoDB lo tratará como un índice **multikey**.
+
+No se propone dicho índice todavía; su necesidad deberá derivarse de los patrones de consulta.
+
+---
+
+# Ubicación geográfica
+
+Las coordenadas pertenecen a la **estación física**, no a cada observación de afluencia.
+
+Por esta razón se almacenarán únicamente en la colección `estaciones`.
+
+La representación será GeoJSON:
+
+```javascript
+ubicacion: {
+  type: "Point",
+  coordinates: [longitud, latitud]
+}
+```
+
+Es importante conservar el orden:
+
+```text
+[longitud, latitud]
+```
+
+y no:
+
+```text
+[latitud, longitud]
+```
+
+Posteriormente se evaluará la creación de un índice:
+
+```text
+2dsphere
+```
+
+cuando se hayan incorporado y validado las coordenadas.
+
+---
+
+# Documento representativo de una estación
+
+Una estación de correspondencia podrá representarse conceptualmente como:
+
+```javascript
+{
+  _id: "balderas",
+
+  nombre: "Balderas",
+
+  lineas: ["1", "3"],
+
+  ubicacion: {
+    type: "Point",
+    coordinates: [longitud, latitud]
+  }
+}
+```
+
+Las coordenadas anteriores se mantienen como marcadores conceptuales y no se incorporarán valores numéricos hasta obtenerlos de una fuente confiable.
+
+---
+
+# Relación entre las colecciones
+
+La relación será:
+
+```text
+estaciones._id
+      ▲
+      │
+      │
+afluencia_diaria.estacion_id
+```
+
+Por ejemplo:
+
+```text
+estaciones
+_id = "balderas"
+        ▲
+        │
+        ├──────── Balderas - Línea 1 - 2025-01-15
+        │
+        ├──────── Balderas - Línea 3 - 2025-01-15
+        │
+        ├──────── Balderas - Línea 1 - 2025-01-16
+        │
+        └──────── Balderas - Línea 3 - 2025-01-16
+```
+
+La colección de afluencia conserva el detalle estación-línea, mientras que `estaciones` representa la entidad física común.
+
+---
+
+# Uso de referencia frente a embebido
+
+## Información embebida
+
+La composición de la afluencia se embebe:
+
+```text
+afluencia
+├── boleto
+├── prepago
+├── gratuidad
+└── total
+```
+
+porque todos sus componentes:
+
+* pertenecen a la misma observación;
+* se consultan frecuentemente juntos;
+* tienen una relación uno a uno con la medición diaria;
+* presentan un tamaño pequeño y conocido.
+
+---
+
+## Información referenciada
+
+La estación física se mantiene mediante referencia:
+
+```text
+estacion_id
+```
+
+porque sus metadatos:
+
+* se comparten entre miles de observaciones;
+* cambian con mucha menor frecuencia que la afluencia;
+* no deben repetirse en cada documento;
+* incluyen posteriormente información geográfica.
+
+De esta forma se evita repetir:
+
+```text
+nombre
+líneas asociadas
+coordenadas
+```
+
+en aproximadamente 379,470 documentos.
+
+---
+
+# Uso previsto de `$lookup`
+
+No será necesario utilizar `$lookup` para las consultas temporales habituales que únicamente requieran:
+
+```text
+fecha
+linea
+estacion_id
+afluencia
+```
+
+La información necesaria ya se encuentra en `afluencia_diaria`.
+
+`$lookup` se reservará para consultas en las que realmente sea necesario enriquecer los resultados con información de la estación física.
+
+Por ejemplo:
+
+```text
+afluencia_diaria
+       ↓
+agrupar estaciones con mayor afluencia
+       ↓
+$lookup
+       ↓
+estaciones
+       ↓
+obtener ubicación GeoJSON
+```
+
+De esta forma, la referencia no obliga a reconstruir cada observación mediante múltiples uniones.
+
+---
+
+# Modelo resultante
+
+```text
+                    ┌───────────────────────┐
+                    │      estaciones       │
+                    │                       │
+                    │ _id : string          │
+                    │ nombre : string       │
+                    │ lineas : array        │
+                    │ ubicacion : GeoJSON   │
+                    └───────────┬───────────┘
+                                │
+                                │ estacion_id
+                                │
+                                ▼
+              ┌─────────────────────────────────┐
+              │        afluencia_diaria         │
+              │                                 │
+              │ _id : ObjectId                  │
+              │ fecha : Date                    │
+              │ estacion_id : string            │
+              │ linea : string                  │
+              │                                 │
+              │ afluencia : object              │
+              │ ├── boleto : int                │
+              │ ├── prepago : int               │
+              │ ├── gratuidad : int             │
+              │ └── total : int                 │
+              └─────────────────────────────────┘
+```
+
+---
+
+# Decisiones adoptadas
+
+| Decisión                  | Solución                                             |
+| ------------------------- | ---------------------------------------------------- |
+| Unidad de almacenamiento  | estación-línea-fecha                                 |
+| Estación física           | colección `estaciones`                               |
+| Medición temporal         | colección `afluencia_diaria`                         |
+| Fecha                     | BSON `Date`                                          |
+| Mes y año                 | derivados de `fecha`                                 |
+| Tipos de pago             | subdocumento embebido                                |
+| Afluencia total           | campo derivado materializado                         |
+| Identificador de estación | `string` estable                                     |
+| Líneas de estación física | arreglo                                              |
+| Coordenadas               | GeoJSON `Point`                                      |
+| Relación                  | `estacion_id` → `estaciones._id`                     |
+| `$lookup`                 | únicamente cuando se requieran metadatos de estación |
+
+---
+
 

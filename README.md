@@ -250,10 +250,190 @@ A partir del perfilado se deberán evaluar las siguientes decisiones:
 
 ---
 
-## Estado
 
-El conjunto de datos presenta una estructura regular y suficiente para continuar con el diseño del modelo documental.
+## Diseño documental
 
-La siguiente etapa consiste en definir formalmente la **unidad de análisis en MongoDB** y comparar alternativas de modelado documental.
+### Criterio de diseño
 
+El modelo documental no se definió como una conversión directa del archivo CSV ni como una reproducción del esquema estrella utilizado previamente para análisis OLAP.
+
+Primero se identificaron las preguntas del proyecto y los principales patrones de consulta. A partir de estos requerimientos se compararon diferentes unidades de análisis para determinar cuál representa mejor la información dentro de MongoDB.
+
+Los principales patrones identificados son:
+
+1. consulta de una línea durante un intervalo temporal;
+2. consulta histórica de una estación durante un intervalo temporal;
+3. agregación de estaciones o líneas para identificar aquellas con mayor afluencia en un periodo;
+4. análisis de la composición de la afluencia según tipo de pago;
+5. enriquecimiento posterior de las estaciones con información geográfica.
+
+---
+
+### Alternativa A: documento por tipo de pago
+
+La primera alternativa conserva la granularidad original del conjunto de datos.
+
+La unidad de análisis sería:
+
+> Una observación de afluencia correspondiente a una fecha, combinación estación-línea y tipo de pago.
+
+Ejemplo:
+
+```javascript
+{
+  fecha: ISODate("2025-01-15T00:00:00Z"),
+  estacion_id: "balderas",
+  linea: "1",
+  tipo_pago: "Prepago",
+  afluencia: 15243
+}
+```
+
+Con esta alternativa se generarían aproximadamente:
+
+```text
+1,946 días
+× 195 combinaciones estación-línea
+× 3 tipos de pago
+=
+1,138,410 documentos
+```
+
+#### Ventajas
+
+* Conserva exactamente la granularidad del conjunto de datos original.
+* Facilita consultas específicas por tipo de pago.
+* Requiere una transformación mínima para pasar del CSV a MongoDB.
+
+#### Desventajas
+
+* Repite fecha, estación y línea para cada tipo de pago.
+* Requiere agregar tres documentos para calcular la afluencia total de una estación en una fecha.
+* Aprovecha de forma limitada la posibilidad de representar información relacionada dentro de un mismo documento.
+
+---
+
+### Alternativa B: documento diario por estación-línea
+
+La segunda alternativa considera que las categorías de pago forman parte de una misma observación diaria.
+
+La unidad de análisis sería:
+
+> La afluencia diaria de una combinación estación-línea, incluyendo su composición por tipo de pago.
+
+Ejemplo:
+
+```javascript
+{
+  fecha: ISODate("2025-01-15T00:00:00Z"),
+  estacion_id: "balderas",
+  linea: "1",
+
+  afluencia: {
+    boleto: 0,
+    prepago: 15243,
+    gratuidad: 814,
+    total: 16057
+  }
+}
+```
+
+Con esta alternativa se generarían aproximadamente:
+
+```text
+1,946 días
+× 195 combinaciones estación-línea
+=
+379,470 documentos
+```
+
+#### Ventajas
+
+* Reduce la repetición de información.
+* Integra en un mismo documento los componentes de una observación diaria.
+* Facilita consultas de afluencia total por estación, línea y fecha.
+* Reduce aproximadamente a un tercio el número de documentos respecto a la granularidad original.
+* Se adapta naturalmente a los patrones de consulta temporal definidos para el proyecto.
+* Permite validar conjuntamente los componentes de la afluencia.
+
+#### Desventajas
+
+* Requiere transformar y agrupar el conjunto de datos antes de cargarlo.
+* Las consultas por un tipo de pago específico deben acceder al campo correspondiente dentro del subdocumento.
+* Una estructura fija es menos flexible si en el futuro surgiera un número elevado o variable de nuevas categorías de pago.
+
+---
+
+### Catálogo de estaciones
+
+Independientemente de la alternativa seleccionada para la afluencia, la información estable de las estaciones se propone mantener en una colección independiente.
+
+De manera preliminar:
+
+```javascript
+{
+  _id: "balderas",
+  nombre: "Balderas",
+  lineas: ["1", "3"],
+
+  ubicacion: {
+    type: "Point",
+    coordinates: [longitud, latitud]
+  }
+}
+```
+
+Esta colección contendrá información que no cambia diariamente, como:
+
+* nombre de la estación;
+* líneas asociadas;
+* coordenadas geográficas;
+* otros metadatos estables que posteriormente resulten pertinentes.
+
+Separar esta información evita repetir las coordenadas y otros atributos de las estaciones en cada observación temporal.
+
+También permitirá representar las ubicaciones mediante GeoJSON y evaluar posteriormente un índice geoespacial `2dsphere`.
+
+---
+
+### Relación preliminar entre colecciones
+
+```text
+              estaciones
+        ┌─────────────────────┐
+        │ _id                 │
+        │ nombre              │
+        │ lineas[]            │
+        │ ubicacion           │
+        │   GeoJSON Point     │
+        └─────────┬───────────┘
+                  │
+                  │ estacion_id
+                  │
+                  ▼
+           afluencia_diaria
+        ┌─────────────────────┐
+        │ fecha               │
+        │ estacion_id         │
+        │ linea               │
+        │                     │
+        │ afluencia           │
+        │ ├── boleto          │
+        │ ├── prepago         │
+        │ ├── gratuidad       │
+        │ └── total           │
+        └─────────────────────┘
+```
+
+---
+
+### Decisión preliminar
+
+La **Alternativa B** es actualmente la opción preferida debido a que representa de manera más natural la unidad utilizada por la mayoría de las preguntas del proyecto:
+
+> afluencia de una estación-línea en una fecha determinada.
+
+Los tipos de pago se interpretarían como componentes de dicha afluencia y no como entidades independientes.
+
+Sin embargo, esta decisión deberá validarse contra las consultas principales antes de considerarse definitiva.
 

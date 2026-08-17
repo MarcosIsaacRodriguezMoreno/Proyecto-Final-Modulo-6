@@ -107,22 +107,153 @@ Esta información permitirá evaluar el uso de índices `2dsphere` y realizar co
 
 ---
 
-## Componentes del proyecto
+# Perfil inicial del conjunto de datos
 
-Durante el desarrollo se implementarán progresivamente:
+## Descripción general
 
-* modelo documental;
-* carga reproducible de datos;
-* consultas simples y aggregation pipelines;
-* análisis temporal;
-* estrategia de indexación;
-* comparación mediante `explain("executionStats")`;
-* validación mediante `$jsonSchema`;
-* pruebas con documentos válidos e inválidos;
-* incorporación de información geográfica;
-* consultas geoespaciales;
-* interpretación de resultados;
-* análisis de limitaciones y posibles mejoras.
+El conjunto de datos contiene información diaria de afluencia de la Red del Metro de la Ciudad de México.
+
+El periodo disponible comprende desde el **1 de enero de 2021 hasta el 30 de abril de 2026**.
+
+La base contiene información por fecha, línea, estación y tipo de pago.
 
 ---
+
+## Dimensiones del conjunto de datos
+
+| Característica               |  Resultado |
+| ---------------------------- | ---------: |
+| Registros totales            |  1,138,410 |
+| Columnas                     |          7 |
+| Fecha inicial                | 2021-01-01 |
+| Fecha final                  | 2026-04-30 |
+| Fechas distintas             |      1,946 |
+| Líneas                       |         12 |
+| Combinaciones línea-estación |        195 |
+| Nombres únicos de estación   |        163 |
+| Tipos de pago                |          3 |
+
+Las categorías registradas en `tipo_pago` son:
+
+* `Boleto`
+* `Prepago`
+* `Gratuidad`
+
+---
+
+## Columnas originales
+
+| Campo       | Tipo observado en el archivo | Descripción                    |
+| ----------- | ---------------------------- | ------------------------------ |
+| `fecha`     | fecha representada en CSV    | Fecha de la observación        |
+| `mes`       | texto                        | Nombre del mes                 |
+| `anio`      | entero                       | Año de la observación          |
+| `linea`     | texto                        | Línea del Metro                |
+| `estacion`  | texto                        | Nombre de la estación          |
+| `tipo_pago` | texto                        | Modalidad de acceso registrada |
+| `afluencia` | entero                       | Afluencia registrada           |
+
+Durante la carga en MongoDB se evaluará transformar `fecha` al tipo BSON `Date`.
+
+---
+
+## Integridad inicial
+
+El perfilado inicial permitió observar:
+
+* no existen valores nulos en las columnas;
+* no existen registros completamente duplicados;
+* no existen duplicados para la combinación lógica `fecha + linea + estacion + tipo_pago`;
+* no existen valores negativos de afluencia;
+* los valores de `anio` son consistentes con el año contenido en `fecha`;
+* los valores de `mes` son consistentes con el mes contenido en `fecha`;
+* existen registros para cada día del periodo analizado.
+
+Cada fecha contiene **585 registros**, correspondientes a:
+
+```text
+195 combinaciones línea-estación × 3 tipos de pago = 585 registros diarios
+```
+
+Por lo tanto:
+
+```text
+1,946 días × 195 combinaciones línea-estación × 3 tipos de pago
+= 1,138,410 registros
+```
+
+Esta cantidad coincide con el número total de filas del conjunto de datos.
+
+---
+
+## Estaciones y líneas
+
+La base contiene **195 combinaciones línea-estación**, pero únicamente **163 nombres de estación distintos**.
+
+Esta diferencia se debe considerar durante el diseño del modelo documental, ya que una estación de correspondencia puede pertenecer a más de una línea.
+
+Será necesario decidir si el catálogo de estaciones representa:
+
+1. una estación física con un arreglo de líneas asociadas; o
+2. una combinación específica estación-línea.
+
+Esta decisión también será relevante cuando se incorporen las coordenadas geográficas.
+
+---
+
+## Comportamiento de la categoría Boleto
+
+La categoría `Boleto` se encuentra presente estructuralmente durante todo el periodo analizado.
+
+Sin embargo, el último día con una afluencia positiva registrada para esta categoría es el **17 de febrero de 2024**.
+
+A partir del **18 de febrero de 2024**, los registros correspondientes a `Boleto` permanecen en el conjunto de datos, pero presentan:
+
+```text
+afluencia = 0
+```
+
+Por lo tanto, estos registros no deben interpretarse como datos faltantes.
+
+Esta característica deberá considerarse al realizar comparaciones históricas por tipo de pago.
+
+---
+
+## Unidad de análisis original
+
+De manera preliminar, una fila del archivo representa:
+
+> La afluencia correspondiente a un tipo de pago, en una combinación específica de estación y línea, durante una fecha determinada.
+
+La llave lógica observada es:
+
+```text
+fecha + linea + estacion + tipo_pago
+```
+
+No se detectaron duplicados para esta combinación.
+
+---
+
+## Consideraciones para MongoDB
+
+A partir del perfilado se deberán evaluar las siguientes decisiones:
+
+* convertir `fecha` a BSON `Date`;
+* determinar si `mes` y `anio` deben almacenarse o derivarse de `fecha`;
+* decidir si los tipos de pago deben mantenerse como documentos independientes o integrarse dentro de un arreglo o subdocumento;
+* definir la representación de estaciones de correspondencia;
+* construir un catálogo de estaciones;
+* incorporar coordenadas geográficas;
+* representar las ubicaciones mediante GeoJSON `Point`;
+* definir las consultas principales antes de diseñar los índices.
+
+---
+
+## Estado
+
+El conjunto de datos presenta una estructura regular y suficiente para continuar con el diseño del modelo documental.
+
+La siguiente etapa consiste en definir formalmente la **unidad de análisis en MongoDB** y comparar alternativas de modelado documental.
+
 

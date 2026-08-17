@@ -1588,4 +1588,688 @@ De esta forma, la referencia no obliga a reconstruir cada observación mediante 
 
 ---
 
+# Transformación de los datos al modelo documental
+
+Una vez definido el modelo documental, se implementó un proceso de transformación para convertir el conjunto de datos tabular original en documentos adecuados para MongoDB.
+
+El conjunto de datos original contenía:
+
+```text
+1,138,410 registros
+```
+
+con la siguiente granularidad:
+
+> **fecha + línea + estación + tipo de pago**
+
+Cada combinación estación-línea-fecha se encontraba representada mediante tres filas independientes, correspondientes a:
+
+```text
+Boleto
+Prepago
+Gratuidad
+```
+
+El modelo documental diseñado requiere una granularidad diferente:
+
+> **fecha + estación-línea**
+
+Por esta razón fue necesario realizar una transformación previa a la carga en MongoDB.
+
+---
+
+## Herramienta utilizada
+
+La transformación se implementó mediante un script en **Python utilizando pandas**.
+
+Python se utilizó únicamente como herramienta de preparación y transformación de los datos.
+
+MongoDB continúa siendo el sistema encargado de:
+
+* almacenamiento documental;
+* consultas;
+* aggregation pipelines;
+* indexación;
+* validación;
+* análisis temporal;
+* análisis geoespacial.
+
+La transformación se mantuvo separada de MongoDB con el objetivo de que el procedimiento fuera reproducible y pudiera validarse antes de cargar la información.
+
+---
+
+# Flujo general de transformación
+
+El proceso implementado fue:
+
+```text
+CSV original
+1,138,410 filas
+       │
+       ▼
+Validación inicial
+       │
+       ▼
+Normalización de estaciones
+       │
+       ▼
+Generación de estacion_id
+       │
+       ▼
+Transformación de tipo_pago
+filas → subdocumento
+       │
+       ├─────────────────────┐
+       ▼                     ▼
+afluencia_diaria         estaciones
+379,470 documentos       163 documentos
+       │                     │
+       └──────────┬──────────┘
+                  ▼
+           Archivos NDJSON
+```
+
+---
+
+# Validaciones previas a la transformación
+
+Antes de transformar los datos se verificó:
+
+* ausencia de valores nulos en los campos utilizados;
+* fechas válidas;
+* valores de afluencia numéricos;
+* ausencia de valores negativos;
+* existencia únicamente de los tipos de pago esperados:
+
+  * `Boleto`;
+  * `Prepago`;
+  * `Gratuidad`;
+* ausencia de duplicados para la llave lógica original:
+
+```text
+fecha + linea + estacion + tipo_pago
+```
+
+También se verificó que cada combinación:
+
+```text
+fecha + linea + estacion
+```
+
+contara exactamente con los tres tipos de pago.
+
+Esta validación fue importante para evitar completar silenciosamente observaciones faltantes durante la transformación.
+
+---
+
+# Transformación de los tipos de pago
+
+En el archivo original una observación se encontraba representada de la siguiente manera:
+
+```text
+fecha       estacion   linea   tipo_pago    afluencia
+2025-01-15  Balderas   1       Boleto       ...
+2025-01-15  Balderas   1       Prepago      ...
+2025-01-15  Balderas   1       Gratuidad    ...
+```
+
+Mediante una operación de transformación se integraron las tres filas dentro de un mismo documento:
+
+```javascript
+{
+  fecha: ISODate("2025-01-15T00:00:00Z"),
+  estacion_id: "balderas",
+  linea: "1",
+
+  afluencia: {
+    boleto: ...,
+    prepago: ...,
+    gratuidad: ...,
+    total: ...
+  }
+}
+```
+
+De esta forma:
+
+```text
+3 filas originales
+        ↓
+1 documento
+```
+
+La transformación redujo:
+
+```text
+1,138,410 filas originales
+```
+
+a:
+
+```text
+379,470 documentos de afluencia_diaria
+```
+
+lo cual coincide exactamente con:
+
+```text
+1,946 fechas
+× 195 combinaciones estación-línea
+=
+379,470 documentos
+```
+
+---
+
+# Cálculo de `afluencia.total`
+
+Durante la transformación se calculó:
+
+```text
+afluencia.total
+=
+afluencia.boleto
++
+afluencia.prepago
++
+afluencia.gratuidad
+```
+
+El valor se almacenó dentro del documento debido a que es utilizado recurrentemente en las principales consultas del proyecto.
+
+Por ejemplo:
+
+```javascript
+afluencia: {
+  boleto: 0,
+  prepago: 15243,
+  gratuidad: 814,
+  total: 16057
+}
+```
+
+Aunque `total` es un campo derivado, materializarlo permite evitar su recálculo repetido durante las consultas de:
+
+* evolución temporal;
+* afluencia por línea;
+* afluencia por estación;
+* máximos y mínimos;
+* ranking de estaciones;
+* porcentaje de gratuidad.
+
+---
+
+# Generación de `estacion_id`
+
+Para relacionar las mediciones de afluencia con las estaciones físicas se generó un identificador textual estable.
+
+Por ejemplo:
+
+```text
+Balderas
+   ↓
+balderas
+```
+
+La normalización considera:
+
+* conversión a minúsculas;
+* eliminación de acentos;
+* normalización de espacios y caracteres;
+* generación de un identificador reproducible.
+
+Antes de utilizar los identificadores se comprobó que la normalización no generara colisiones entre estaciones.
+
+Como resultado se conservaron:
+
+```text
+163 estaciones físicas
+=
+163 estacion_id distintos
+```
+
+---
+
+# Generación de la colección `estaciones`
+
+A partir de las combinaciones únicas estación-línea se generó automáticamente el catálogo de estaciones físicas.
+
+Una estación perteneciente a una sola línea se representa conceptualmente como:
+
+```javascript
+{
+  "_id": "balbuena",
+  "nombre": "Balbuena",
+  "lineas": ["1"]
+}
+```
+
+Una estación de correspondencia puede contener varias líneas:
+
+```javascript
+{
+  "_id": "balderas",
+  "nombre": "Balderas",
+  "lineas": ["1", "3"]
+}
+```
+
+El resultado de esta transformación fue:
+
+```text
+163 documentos
+```
+
+en la colección lógica:
+
+```text
+estaciones
+```
+
+Estos documentos representan estaciones físicas, mientras que `afluencia_diaria` conserva el detalle estación-línea.
+
+---
+
+# Archivos generados
+
+El proceso produjo dos archivos en formato **NDJSON**:
+
+```text
+procesados/
+├── afluencia_diaria.ndjson
+└── estaciones.ndjson
+```
+
+NDJSON almacena un documento JSON independiente por línea, lo cual resulta conveniente para manejar grandes cantidades de documentos y para su posterior importación a MongoDB.
+
+---
+
+## `afluencia_diaria.ndjson`
+
+Contiene:
+
+```text
+379,470 documentos
+```
+
+Cada documento representa:
+
+> La afluencia de una combinación estación-línea durante una fecha determinada.
+
+Su estructura general es:
+
+```javascript
+{
+  "fecha": {
+    "$date": "2025-01-15T00:00:00Z"
+  },
+
+  "estacion_id": "balderas",
+
+  "linea": "1",
+
+  "afluencia": {
+    "boleto": 0,
+    "prepago": 15243,
+    "gratuidad": 814,
+    "total": 16057
+  }
+}
+```
+
+La fecha se exportó utilizando **Extended JSON** para conservar posteriormente su interpretación como BSON `Date` al importar la información en MongoDB.
+
+---
+
+## `estaciones.ndjson`
+
+Inicialmente se generaron:
+
+```text
+163 documentos
+```
+
+con la estructura:
+
+```javascript
+{
+  "_id": "balderas",
+  "nombre": "Balderas",
+  "lineas": ["1", "3"]
+}
+```
+
+Posteriormente esta colección fue enriquecida con información geográfica.
+
+---
+
+# Reconciliación de la transformación
+
+Antes de aceptar los archivos transformados se realizó una reconciliación entre el conjunto de datos original y los documentos resultantes.
+
+Los resultados obtenidos fueron:
+
+| Métrica                       |     Resultado |
+| ----------------------------- | ------------: |
+| Filas originales              |     1,138,410 |
+| Documentos `afluencia_diaria` |       379,470 |
+| Estaciones físicas            |           163 |
+| Fecha mínima                  |    2021-01-01 |
+| Fecha máxima                  |    2026-04-30 |
+| Afluencia total               | 5,774,160,966 |
+| Boleto                        |   770,301,660 |
+| Prepago                       | 4,244,900,573 |
+| Gratuidad                     |   758,958,733 |
+
+Se verificó que:
+
+```text
+770,301,660
++ 4,244,900,573
++   758,958,733
+─────────────────
+= 5,774,160,966
+```
+
+Por lo tanto, la afluencia total fue conservada durante la transformación.
+
+También se comprobó individualmente que las sumas de:
+
+```text
+Boleto
+Prepago
+Gratuidad
+```
+
+coincidieran antes y después del proceso.
+
+---
+
+# Validación de los documentos resultantes
+
+Después de generar los archivos se comprobó físicamente que:
+
+```text
+afluencia_diaria.ndjson
+= 379,470 documentos
+```
+
+y:
+
+```text
+estaciones.ndjson
+= 163 documentos
+```
+
+Además, sobre `afluencia_diaria` se verificó:
+
+* 1,946 fechas distintas;
+* periodo de 2021-01-01 a 2026-04-30;
+* 195 documentos por fecha;
+* 195 combinaciones estación-línea;
+* 163 estaciones referenciadas;
+* ausencia de duplicados para:
+
+```text
+fecha + estacion_id + linea
+```
+
+* ausencia de afluencias negativas;
+* cumplimiento de:
+
+```text
+afluencia.total
+=
+afluencia.boleto
++
+afluencia.prepago
++
+afluencia.gratuidad
+```
+
+para los documentos generados.
+
+---
+
+# Enriquecimiento geográfico de las estaciones
+
+Posteriormente se utilizó el archivo `stops.txt` del conjunto GTFS para incorporar coordenadas a las estaciones.
+
+El archivo GTFS contiene registros a nivel estación-línea.
+
+Para el Metro se identificaron:
+
+```text
+195 registros estación-línea
+```
+
+correspondientes a:
+
+```text
+163 estaciones físicas
+```
+
+Esta estructura coincide con las dimensiones identificadas previamente en el conjunto de afluencia.
+
+---
+
+## Correspondencia de nombres
+
+La mayoría de los nombres de las estaciones coincidieron directamente después de normalizar:
+
+* mayúsculas y minúsculas;
+* acentos;
+* espacios;
+* signos de puntuación.
+
+Se identificaron algunas diferencias de nomenclatura entre ambas fuentes que fueron resueltas mediante equivalencias explícitas.
+
+Entre ellas:
+
+| Base de afluencia                 | GTFS                                |
+| --------------------------------- | ----------------------------------- |
+| Etiopía/Plaza de la Transparencia | Etiopía y Plaza de la Transparencia |
+| Ferrería/Arena Ciudad de México   | Ferrería y Arena Ciudad de México   |
+| Garibaldi/Lagunilla               | Garibaldi y Lagunilla               |
+| La Villa/Basílica                 | La Villa y Basílica                 |
+| Niños Héroes                      | Niños Héroes y Poder Judicial CDMX  |
+| Viveros/Derechos Humanos          | Viveros y Derechos Humanos          |
+| Zócalo/Tenochtitlan               | Zócalo                              |
+
+Después de aplicar estas equivalencias se obtuvo correspondencia para todas las estaciones utilizadas en el proyecto.
+
+---
+
+# Coordenada representativa de una estación física
+
+Las estaciones de correspondencia pueden presentar más de una coordenada en GTFS debido a que existen registros independientes para distintas líneas.
+
+Por ejemplo, una estación física puede tener:
+
+```text
+Estación - Línea 1 → punto A
+Estación - Línea 2 → punto B
+Estación - Línea 3 → punto C
+```
+
+Sin embargo, la colección `estaciones` representa una **estación física**, no una plataforma o combinación estación-línea.
+
+Por esta razón se calculó una coordenada representativa utilizando el promedio de los puntos GTFS asociados a una misma estación física:
+
+```text
+longitud representativa
+=
+promedio(longitudes GTFS)
+```
+
+```text
+latitud representativa
+=
+promedio(latitudes GTFS)
+```
+
+Para estaciones pertenecientes únicamente a una línea, la coordenada representativa coincide directamente con el punto GTFS original.
+
+---
+
+## Interpretación de la coordenada
+
+La ubicación almacenada debe interpretarse como:
+
+> **Un punto geográfico representativo de la estación física.**
+
+No debe interpretarse necesariamente como:
+
+* una entrada específica;
+* un torniquete;
+* un andén;
+* una plataforma exacta.
+
+Esta distinción es especialmente importante en complejos de correspondencia donde diferentes líneas pueden encontrarse físicamente separadas.
+
+---
+
+# Representación GeoJSON
+
+Las coordenadas fueron incorporadas a `estaciones.ndjson` mediante GeoJSON:
+
+```javascript
+{
+  "_id": "balderas",
+
+  "nombre": "Balderas",
+
+  "lineas": ["1", "3"],
+
+  "ubicacion": {
+    "type": "Point",
+    "coordinates": [
+      longitud,
+      latitud
+    ]
+  }
+}
+```
+
+Se conservó el orden requerido por GeoJSON:
+
+```text
+[longitud, latitud]
+```
+
+y no:
+
+```text
+[latitud, longitud]
+```
+
+---
+
+# Validación geográfica
+
+Se verificó que las 163 estaciones contaran con el campo:
+
+```text
+ubicacion
+```
+
+y que todas utilizaran:
+
+```text
+type = "Point"
+```
+
+También se comprobaron los rangos estructurales de las coordenadas:
+
+```text
+-180 ≤ longitud ≤ 180
+-90  ≤ latitud  ≤ 90
+```
+
+El rango observado para las estaciones fue:
+
+```text
+Longitud:
+-99.21584 a -98.96094
+
+Latitud:
+19.28602 a 19.53451
+```
+
+lo cual resulta consistente con la ubicación geográfica de la Red del Metro de la Ciudad de México y su zona metropolitana.
+
+Como validación adicional se planteó representar las 163 estaciones sobre un mapa para comprobar visualmente su distribución espacial.
+
+---
+
+# Modelo documental obtenido
+
+Después de la transformación y el enriquecimiento geográfico, la solución queda compuesta por:
+
+```text
+                    estaciones
+            ┌────────────────────────┐
+            │ 163 documentos         │
+            │                        │
+            │ _id                    │
+            │ nombre                 │
+            │ lineas[]               │
+            │ ubicacion              │
+            │   GeoJSON Point        │
+            └───────────┬────────────┘
+                        │
+                        │ estacion_id
+                        │
+                        ▼
+                afluencia_diaria
+            ┌────────────────────────┐
+            │ 379,470 documentos     │
+            │                        │
+            │ fecha                  │
+            │ estacion_id            │
+            │ linea                  │
+            │ afluencia              │
+            │ ├── boleto             │
+            │ ├── prepago            │
+            │ ├── gratuidad          │
+            │ └── total              │
+            └────────────────────────┘
+```
+
+---
+
+# Resultado de la etapa
+
+La transformación permitió pasar de:
+
+```text
+Modelo tabular
+1,138,410 filas
+```
+
+a:
+
+```text
+Modelo documental
+
+379,470 documentos de afluencia
++
+163 documentos de estaciones
+```
+
+conservando la información original de afluencia y separando:
+
+```text
+mediciones temporales
+        ↓
+afluencia_diaria
+```
+
+de:
+
+```text
+metadatos estables y geográficos
+        ↓
+estaciones
+```
 

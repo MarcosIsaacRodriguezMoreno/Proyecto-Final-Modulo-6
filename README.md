@@ -537,4 +537,445 @@ Esta decisión continúa siendo preliminar hasta validar formalmente que las con
 
 ---
 
+# Validación del modelo contra los patrones de consulta
+
+Antes de adoptar definitivamente la estructura documental propuesta, se evaluó si la **Alternativa B: documento diario por combinación estación-línea** permite responder de manera natural las preguntas y patrones de consulta definidos para el proyecto.
+
+La unidad de almacenamiento propuesta es:
+
+> Una observación diaria de afluencia correspondiente a una combinación específica estación-línea, incluyendo su composición por tipo de acceso.
+
+De manera conceptual:
+
+```javascript
+{
+  fecha: ISODate("2025-01-15T00:00:00Z"),
+  estacion_id: "balderas",
+  linea: "1",
+
+  afluencia: {
+    boleto: 0,
+    prepago: 15243,
+    gratuidad: 814,
+    total: 16057
+  }
+}
+```
+
+Esta estructura conserva la granularidad original de las mediciones por combinación estación-línea, pero permite agregar posteriormente varias líneas cuando la pregunta requiera analizar una **estación física**.
+
+---
+
+## Distinción entre estación-línea y estación física
+
+El conjunto de datos contiene:
+
+```text
+195 combinaciones línea-estación
+163 estaciones físicas
+```
+
+Las estaciones de correspondencia aparecen asociadas a más de una línea y la afluencia se registra de manera independiente para cada combinación estación-línea.
+
+Por ejemplo:
+
+```text
+Balderas
+├── Línea 1
+└── Línea 3
+```
+
+Por lo tanto, se adoptan dos niveles de análisis:
+
+### Estación-línea
+
+Representa la unidad básica en la que se registra la afluencia.
+
+Ejemplo:
+
+```text
+Balderas - Línea 1
+Balderas - Línea 3
+```
+
+### Estación física
+
+Representa una estación independientemente de las líneas a las que pertenece.
+
+Cuando una consulta se refiera a la afluencia total de una estación física, se sumarán las observaciones correspondientes a todas sus líneas.
+
+Por lo tanto:
+
+```text
+afluencia estación física
+=
+suma de la afluencia de todas sus combinaciones estación-línea
+```
+
+Esta decisión permite conservar la granularidad original sin perder la posibilidad de analizar posteriormente la estación como una entidad única.
+
+---
+
+## Consulta A: evolución de una línea
+
+La consulta busca responder:
+
+> ¿Cuál fue la evolución de la afluencia de una línea determinada durante un periodo específico?
+
+El patrón conceptual es:
+
+```text
+línea = igualdad
+fecha = rango
+        ↓
+agrupar por fecha
+        ↓
+sumar afluencia total
+        ↓
+ordenar cronológicamente
+```
+
+### Unidad inicial
+
+```text
+estación-línea-fecha
+```
+
+### Unidad final
+
+```text
+línea-fecha
+```
+
+Para cada fecha se sumará `afluencia.total` de todas las estaciones pertenecientes a la línea seleccionada.
+
+### Evaluación
+
+**Compatible con el modelo propuesto.**
+
+Esta consulta presenta además un patrón claro de:
+
+```text
+igualdad + rango temporal + ordenamiento
+```
+
+por lo que será una de las consultas utilizadas posteriormente para evaluar la estrategia de indexación.
+
+---
+
+## Consulta B: historial de una estación
+
+La consulta busca responder:
+
+> ¿Cómo se comportó la afluencia de una estación física determinada durante un periodo específico?
+
+En este caso, una estación puede pertenecer a una o varias líneas.
+
+Por ejemplo:
+
+```text
+Balderas
+├── Línea 1
+└── Línea 3
+```
+
+Para obtener la afluencia total de la estación física se recuperarán todas las observaciones que compartan el mismo `estacion_id` y posteriormente se sumarán las observaciones correspondientes a sus diferentes líneas para cada fecha.
+
+El patrón conceptual será:
+
+```text
+estacion_id = igualdad
+fecha = rango
+        ↓
+agrupar por fecha
+        ↓
+sumar afluencia de todas las líneas
+        ↓
+ordenar cronológicamente
+```
+
+### Unidad inicial
+
+```text
+estación-línea-fecha
+```
+
+### Unidad final
+
+```text
+estación física-fecha
+```
+
+De manera conceptual:
+
+```text
+Balderas - Línea 1
+        +
+Balderas - Línea 3
+        ↓
+Afluencia total de Balderas
+```
+
+Si posteriormente se requiere analizar únicamente una combinación específica, por ejemplo:
+
+```text
+Balderas - Línea 1
+```
+
+podrá incorporarse adicionalmente el filtro por `linea`.
+
+### Evaluación
+
+**Compatible con el modelo propuesto.**
+
+La estructura permite analizar tanto estaciones físicas como combinaciones específicas estación-línea sin perder información.
+
+---
+
+## Consulta C: estaciones con mayor afluencia
+
+La consulta busca responder:
+
+> ¿Qué estaciones físicas presentan la mayor afluencia acumulada durante un periodo determinado?
+
+El flujo conceptual será:
+
+```text
+rango temporal
+     ↓
+agrupar por estacion_id
+     ↓
+sumar afluencia total
+     ↓
+ordenar de mayor a menor
+     ↓
+seleccionar resultados principales
+```
+
+### Unidad inicial
+
+```text
+estación-línea-fecha
+```
+
+### Unidad final
+
+```text
+estación física
+```
+
+Para las estaciones de correspondencia, los registros de las diferentes líneas se sumarán utilizando el mismo `estacion_id`.
+
+Por ejemplo:
+
+```text
+Balderas - Línea 1
+        +
+Balderas - Línea 3
+        ↓
+Balderas
+```
+
+De esta forma, cada estación física aparecerá una sola vez en el resultado final.
+
+### Evaluación
+
+**Compatible con el modelo propuesto.**
+
+Este patrón permitirá evaluar posteriormente hasta qué punto un índice sobre el rango temporal reduce el conjunto inicial de documentos y qué parte del trabajo continúa realizándose durante las etapas de `$group` y `$sort`.
+
+---
+
+## Consulta de porcentaje de gratuidad
+
+La pregunta del proyecto es:
+
+> ¿Qué porcentaje de la afluencia total corresponde a accesos por gratuidad en cada estación del Metro y cómo varía este porcentaje a lo largo del periodo analizado?
+
+Para una estación física se deberán agregar primero los registros correspondientes a todas sus líneas.
+
+El cálculo será:
+
+```text
+porcentaje_gratuidad =
+SUM(afluencia.gratuidad)
+──────────────────────── × 100
+  SUM(afluencia.total)
+```
+
+Por ejemplo, para una estación de correspondencia:
+
+```text
+gratuidad Línea 1
+        +
+gratuidad Línea 3
+        ↓
+gratuidad total de la estación
+```
+
+y:
+
+```text
+afluencia total Línea 1
+        +
+afluencia total Línea 3
+        ↓
+afluencia total de la estación
+```
+
+Posteriormente:
+
+```text
+gratuidad total de la estación
+────────────────────────────── × 100
+ afluencia total de la estación
+```
+
+No se utilizará el promedio simple de porcentajes diarios o de porcentajes por línea, debido a que esto daría el mismo peso a observaciones con diferentes niveles de afluencia.
+
+También deberá controlarse explícitamente cualquier caso en el que la suma de `afluencia.total` sea igual a cero antes de realizar la división.
+
+### Evaluación
+
+**Altamente compatible con el modelo propuesto.**
+
+La estructura embebida:
+
+```javascript
+afluencia: {
+  boleto: ...,
+  prepago: ...,
+  gratuidad: ...,
+  total: ...
+}
+```
+
+mantiene dentro del mismo documento los componentes necesarios para calcular el indicador.
+
+---
+
+## Consulta geoespacial
+
+La pregunta del proyecto es:
+
+> ¿Cómo se distribuyen geográficamente las estaciones con mayores niveles de afluencia y qué consultas espaciales pueden realizarse utilizando su ubicación?
+
+La ubicación geográfica no pertenece a la medición diaria de afluencia, sino a la **estación física**.
+
+Por esta razón se propone mantener un catálogo independiente de estaciones:
+
+```javascript
+{
+  _id: "balderas",
+  nombre: "Balderas",
+  lineas: ["1", "3"],
+
+  ubicacion: {
+    type: "Point",
+    coordinates: [longitud, latitud]
+  }
+}
+```
+
+El flujo conceptual será:
+
+```text
+afluencia_diaria
+       ↓
+agrupar por estación física
+       ↓
+obtener indicadores de afluencia
+       ↓
+relacionar con catálogo de estaciones
+       ↓
+incorporar ubicación GeoJSON
+       ↓
+análisis geoespacial
+```
+
+La estación física será, por lo tanto, la unidad geográfica del proyecto.
+
+### Evaluación
+
+**Compatible con el modelo propuesto mediante una colección independiente de estaciones.**
+
+---
+
+# Niveles de análisis adoptados
+
+La solución distingue entre la granularidad de almacenamiento y las unidades utilizadas para responder cada pregunta.
+
+| Elemento                     | Unidad utilizada                  |
+| ---------------------------- | --------------------------------- |
+| Dato fuente                  | estación-línea-tipo de pago-fecha |
+| Documento `afluencia_diaria` | estación-línea-fecha              |
+| Entidad `estaciones`         | estación física                   |
+| Evolución por línea          | línea                             |
+| Historial de estación        | estación física                   |
+| Ranking de estaciones        | estación física                   |
+| Porcentaje de gratuidad      | estación física                   |
+| Coordenadas geográficas      | estación física                   |
+| GeoJSON                      | estación física                   |
+
+Esta separación permite conservar el detalle del conjunto de datos original y al mismo tiempo construir análisis en niveles superiores mediante agregaciones.
+
+---
+
+# Resultado de la validación del modelo
+
+| Requerimiento                                             | Alternativa B        |
+| --------------------------------------------------------- | -------------------- |
+| Conservación del detalle estación-línea                   | Compatible           |
+| Evolución temporal por línea                              | Compatible           |
+| Historial por estación física                             | Compatible           |
+| Consulta específica estación-línea                        | Compatible           |
+| Ranking de estaciones físicas                             | Compatible           |
+| Porcentaje de gratuidad                                   | Altamente compatible |
+| Análisis temporal                                         | Compatible           |
+| Incorporación geoespacial                                 | Compatible           |
+| Reducción de redundancia respecto al CSV                  | Compatible           |
+| Conservación de información para agregaciones posteriores | Compatible           |
+
+La evaluación indica que la **Alternativa B soporta de manera natural los principales patrones de consulta del proyecto**.
+
+Además, conserva la granularidad estación-línea necesaria para los análisis por línea, mientras que el uso de un identificador común de estación permite reconstruir la estación física mediante agregaciones cuando la pregunta lo requiere.
+
+---
+
+## Decisión adoptada
+
+Se adopta como unidad de almacenamiento:
+
+> **La afluencia diaria de una combinación estación-línea, incluyendo su composición por tipo de acceso.**
+
+La colección principal utilizará provisionalmente el nombre:
+
+```text
+afluencia_diaria
+```
+
+La estación física se representará mediante una colección independiente:
+
+```text
+estaciones
+```
+
+De esta forma:
+
+```text
+estación-línea
+      ↓
+unidad de almacenamiento
+
+estación física
+      ↓
+entidad de referencia
+      ↓
+unidad de análisis agregado
+      ↓
+unidad geoespacial
+```
+
+Con esta decisión se considera validada la estructura general del modelo contra las preguntas y patrones de consulta actualmente definidos.
+
 

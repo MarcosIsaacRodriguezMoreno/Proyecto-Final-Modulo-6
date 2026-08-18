@@ -1,0 +1,118 @@
+=== MEDICIONES ANTES DE CREAR ÍNDICES ===
+
+=== CONSULTA A: Línea 1 durante 2025 ===
+{
+  plan: {
+    stage: 'SORT',
+    sortPattern: {
+      fecha: 1
+    },
+    memLimit: 104857600,
+    type: 'simple',
+    inputStage: {
+      stage: 'COLLSCAN',
+      filter: {
+        '$and': [
+          {
+            linea: {
+              '$eq': 'Linea 1'
+            }
+          },
+          {
+            fecha: {
+              '$lt': ISODate('2026-01-01T00:00:00.000Z')
+            }
+          },
+          {
+            fecha: {
+              '$gte': ISODate('2025-01-01T00:00:00.000Z')
+            }
+          }
+        ]
+      },
+      direction: 'forward'
+    }
+  },
+  nReturned: 7300,
+  totalKeysExamined: 0,
+  totalDocsExamined: 379470,
+  executionTimeMillis: 167
+}
+
+=== CONSULTA B: Pantitlán durante 2025 ===
+{
+  plan: {
+    stage: 'SORT',
+    sortPattern: {
+      fecha: 1
+    },
+    memLimit: 104857600,
+    type: 'simple',
+    inputStage: {
+      stage: 'COLLSCAN',
+      filter: {
+        '$and': [
+          {
+            estacion_id: {
+              '$eq': 'pantitlan'
+            }
+          },
+          {
+            fecha: {
+              '$lt': ISODate('2026-01-01T00:00:00.000Z')
+            }
+          },
+          {
+            fecha: {
+              '$gte': ISODate('2025-01-01T00:00:00.000Z')
+            }
+          }
+        ]
+      },
+      direction: 'forward'
+    }
+  },
+  nReturned: 1460,
+  totalKeysExamined: 0,
+  totalDocsExamined: 379470,
+  executionTimeMillis: 129
+}
+
+=== CONSULTA C: Top 10 estaciones durante 2025 ===
+{
+  plan: {
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      estacion_id: 1,
+      _id: 0
+    },
+    inputStage: {
+      stage: 'COLLSCAN',
+      filter: {
+        '$and': [
+          {
+            fecha: {
+              '$lt': ISODate('2026-01-01T00:00:00.000Z')
+            }
+          },
+          {
+            fecha: {
+              '$gte': ISODate('2025-01-01T00:00:00.000Z')
+            }
+          }
+        ]
+      },
+      direction: 'forward'
+    }
+  },
+  nReturnedFinal: Long('10'),
+  totalKeysExamined: 0,
+  totalDocsExamined: 379470,
+  executionTimeMillis: 230,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
+}

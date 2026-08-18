@@ -1,0 +1,38 @@
+=== PRUEBAS DEL VALIDADOR DE AFLUENCIA ===
+1. Documento válido completo: ACEPTADO | esperado: ACEPTADO
+2. Segundo documento válido: ACEPTADO | esperado: ACEPTADO
+3. Falta fecha: RECHAZADO | esperado: RECHAZADO | regla de validación
+4. Fecha como cadena: RECHAZADO | esperado: RECHAZADO | regla de validación
+5. Afluencia negativa: RECHAZADO | esperado: RECHAZADO | regla de validación
+6. Falta afluencia.total: RECHAZADO | esperado: RECHAZADO | regla de validación
+
+Documentos de prueba almacenados: 2
+[
+  {
+    _id: 'PRUEBA-VAL-01',
+    fecha: ISODate('2025-01-15T00:00:00.000Z'),
+    estacion_id: 'balderas',
+    linea: 'Linea 1',
+    afluencia: {
+      boleto: 0,
+      prepago: 1000,
+      gratuidad: 100,
+      total: 1100
+    }
+  },
+  {
+    _id: 'PRUEBA-VAL-02',
+    fecha: ISODate('2025-01-16T00:00:00.000Z'),
+    estacion_id: 'pantitlan',
+    linea: 'Linea 1',
+    afluencia: {
+      boleto: Long('0'),
+      prepago: Long('2000'),
+      gratuidad: Long('200'),
+      total: Long('2200')
+    }
+  }
+]
+
+Documentos de prueba eliminados: 2
+Documentos reales restantes: 379470

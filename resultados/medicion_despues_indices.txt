@@ -1,0 +1,120 @@
+=== MEDICIONES DESPUÉS DE CREAR ÍNDICES ===
+
+=== CONSULTA A: Línea 1 durante 2025 ===
+{
+  plan: {
+    stage: 'FETCH',
+    inputStage: {
+      stage: 'IXSCAN',
+      keyPattern: {
+        linea: 1,
+        fecha: 1
+      },
+      indexName: 'idx_linea_fecha',
+      isMultiKey: false,
+      multiKeyPaths: {
+        linea: [],
+        fecha: []
+      },
+      isUnique: false,
+      isSparse: false,
+      isPartial: false,
+      indexVersion: 2,
+      direction: 'forward',
+      indexBounds: {
+        linea: [
+          '["Linea 1", "Linea 1"]'
+        ],
+        fecha: [
+          '[new Date(1735689600000), new Date(1767225600000))'
+        ]
+      }
+    }
+  },
+  nReturned: 7300,
+  totalKeysExamined: 7300,
+  totalDocsExamined: 7300,
+  executionTimeMillis: 35
+}
+
+=== CONSULTA B: Pantitlán durante 2025 ===
+{
+  plan: {
+    stage: 'FETCH',
+    inputStage: {
+      stage: 'IXSCAN',
+      keyPattern: {
+        estacion_id: 1,
+        fecha: 1
+      },
+      indexName: 'idx_estacion_fecha',
+      isMultiKey: false,
+      multiKeyPaths: {
+        estacion_id: [],
+        fecha: []
+      },
+      isUnique: false,
+      isSparse: false,
+      isPartial: false,
+      indexVersion: 2,
+      direction: 'forward',
+      indexBounds: {
+        estacion_id: [
+          '["pantitlan", "pantitlan"]'
+        ],
+        fecha: [
+          '[new Date(1735689600000), new Date(1767225600000))'
+        ]
+      }
+    }
+  },
+  nReturned: 1460,
+  totalKeysExamined: 1460,
+  totalDocsExamined: 1460,
+  executionTimeMillis: 9
+}
+
+=== CONSULTA C: Top 10 estaciones durante 2025 ===
+{
+  plan: {
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      estacion_id: 1,
+      _id: 0
+    },
+    inputStage: {
+      stage: 'FETCH',
+      inputStage: {
+        stage: 'IXSCAN',
+        keyPattern: {
+          fecha: 1
+        },
+        indexName: 'idx_fecha',
+        isMultiKey: false,
+        multiKeyPaths: {
+          fecha: []
+        },
+        isUnique: false,
+        isSparse: false,
+        isPartial: false,
+        indexVersion: 2,
+        direction: 'forward',
+        indexBounds: {
+          fecha: [
+            '[new Date(1735689600000), new Date(1767225600000))'
+          ]
+        }
+      }
+    }
+  },
+  nReturnedFinal: Long('10'),
+  totalKeysExamined: 71175,
+  totalDocsExamined: 71175,
+  executionTimeMillis: 124,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
+}

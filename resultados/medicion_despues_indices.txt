@@ -1,77 +1,103 @@
 === MEDICIONES DESPUÉS DE CREAR ÍNDICES ===
 
-=== CONSULTA A: Línea 1 durante 2025 ===
+=== CONSULTA A: Línea 1 por fecha durante 2025 ===
 {
   plan: {
-    stage: 'FETCH',
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      fecha: 1,
+      _id: 0
+    },
     inputStage: {
-      stage: 'IXSCAN',
-      keyPattern: {
-        linea: 1,
-        fecha: 1
-      },
-      indexName: 'idx_linea_fecha',
-      isMultiKey: false,
-      multiKeyPaths: {
-        linea: [],
-        fecha: []
-      },
-      isUnique: false,
-      isSparse: false,
-      isPartial: false,
-      indexVersion: 2,
-      direction: 'forward',
-      indexBounds: {
-        linea: [
-          '["Linea 1", "Linea 1"]'
-        ],
-        fecha: [
-          '[new Date(1735689600000), new Date(1767225600000))'
-        ]
+      stage: 'FETCH',
+      inputStage: {
+        stage: 'IXSCAN',
+        keyPattern: {
+          linea: 1,
+          fecha: 1
+        },
+        indexName: 'idx_linea_fecha',
+        isMultiKey: false,
+        multiKeyPaths: {
+          linea: [],
+          fecha: []
+        },
+        isUnique: false,
+        isSparse: false,
+        isPartial: false,
+        indexVersion: 2,
+        direction: 'forward',
+        indexBounds: {
+          linea: [
+            '["Linea 1", "Linea 1"]'
+          ],
+          fecha: [
+            '[new Date(1735689600000), new Date(1767225600000))'
+          ]
+        }
       }
     }
   },
-  nReturned: 7300,
+  nReturnedFinal: Long('365'),
   totalKeysExamined: 7300,
   totalDocsExamined: 7300,
-  executionTimeMillis: 35
+  executionTimeMillis: 47,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
 }
 
-=== CONSULTA B: Pantitlán durante 2025 ===
+=== CONSULTA B: Pantitlán por fecha durante 2025 ===
 {
   plan: {
-    stage: 'FETCH',
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      fecha: 1,
+      _id: 0
+    },
     inputStage: {
-      stage: 'IXSCAN',
-      keyPattern: {
-        estacion_id: 1,
-        fecha: 1
-      },
-      indexName: 'idx_estacion_fecha',
-      isMultiKey: false,
-      multiKeyPaths: {
-        estacion_id: [],
-        fecha: []
-      },
-      isUnique: false,
-      isSparse: false,
-      isPartial: false,
-      indexVersion: 2,
-      direction: 'forward',
-      indexBounds: {
-        estacion_id: [
-          '["pantitlan", "pantitlan"]'
-        ],
-        fecha: [
-          '[new Date(1735689600000), new Date(1767225600000))'
-        ]
+      stage: 'FETCH',
+      inputStage: {
+        stage: 'IXSCAN',
+        keyPattern: {
+          estacion_id: 1,
+          fecha: 1
+        },
+        indexName: 'idx_estacion_fecha',
+        isMultiKey: false,
+        multiKeyPaths: {
+          estacion_id: [],
+          fecha: []
+        },
+        isUnique: false,
+        isSparse: false,
+        isPartial: false,
+        indexVersion: 2,
+        direction: 'forward',
+        indexBounds: {
+          estacion_id: [
+            '["pantitlan", "pantitlan"]'
+          ],
+          fecha: [
+            '[new Date(1735689600000), new Date(1767225600000))'
+          ]
+        }
       }
     }
   },
-  nReturned: 1460,
+  nReturnedFinal: Long('365'),
   totalKeysExamined: 1460,
   totalDocsExamined: 1460,
-  executionTimeMillis: 9
+  executionTimeMillis: 32,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
 }
 
 === CONSULTA C: Top 10 estaciones durante 2025 ===
@@ -111,7 +137,7 @@
   nReturnedFinal: Long('10'),
   totalKeysExamined: 71175,
   totalDocsExamined: 71175,
-  executionTimeMillis: 124,
+  executionTimeMillis: 175,
   etapasPipeline: [
     '$cursor',
     '$group',

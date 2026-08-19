@@ -5,65 +5,121 @@ print("=== MEDICIONES ANTES DE CREAR ÍNDICES ===");
 
 /* =========================================================
    CONSULTA A
-   Evolución de la Línea 1 durante 2025
+   Evolución diaria de la Línea 1 durante 2025.
+
+   Se suman todas las estaciones de la línea para obtener
+   un único resultado agregado por fecha.
    ========================================================= */
 
 const consultaA = db.afluencia_diaria
-    .find({
-        linea: "Linea 1",
-        fecha: {
-            $gte: ISODate("2025-01-01T00:00:00Z"),
-            $lt: ISODate("2026-01-01T00:00:00Z")
+    .explain("executionStats")
+    .aggregate([
+        {
+            $match: {
+                linea: "Linea 1",
+                fecha: {
+                    $gte: ISODate("2025-01-01T00:00:00Z"),
+                    $lt: ISODate("2026-01-01T00:00:00Z")
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$fecha",
+                afluenciaTotal: {
+                    $sum: "$afluencia.total"
+                }
+            }
+        },
+        {
+            $sort: {
+                _id: 1
+            }
         }
-    })
-    .sort({
-        fecha: 1
-    })
-    .explain("executionStats");
+    ]);
 
-print("\n=== CONSULTA A: Línea 1 durante 2025 ===");
+const cursorA = consultaA.stages[0].$cursor;
+const ultimaEtapaA =
+    consultaA.stages[consultaA.stages.length - 1];
+
+print("\n=== CONSULTA A: Línea 1 por fecha durante 2025 ===");
 
 printjson({
-    plan: consultaA.queryPlanner.winningPlan,
-    nReturned: consultaA.executionStats.nReturned,
-    totalKeysExamined: consultaA.executionStats.totalKeysExamined,
-    totalDocsExamined: consultaA.executionStats.totalDocsExamined,
-    executionTimeMillis: consultaA.executionStats.executionTimeMillis
+    plan: cursorA.queryPlanner.winningPlan,
+    nReturnedFinal: ultimaEtapaA.nReturned,
+    totalKeysExamined:
+        cursorA.executionStats.totalKeysExamined,
+    totalDocsExamined:
+        cursorA.executionStats.totalDocsExamined,
+    executionTimeMillis:
+        cursorA.executionStats.executionTimeMillis,
+    etapasPipeline: consultaA.stages.map(
+        etapa => Object.keys(etapa)[0]
+    )
 });
 
 
 /* =========================================================
    CONSULTA B
-   Historial de Pantitlán durante 2025
+   Evolución diaria de Pantitlán durante 2025.
+
+   Se suman todas las líneas asociadas con la estación física
+   para obtener un único resultado agregado por fecha.
    ========================================================= */
 
 const consultaB = db.afluencia_diaria
-    .find({
-        estacion_id: "pantitlan",
-        fecha: {
-            $gte: ISODate("2025-01-01T00:00:00Z"),
-            $lt: ISODate("2026-01-01T00:00:00Z")
+    .explain("executionStats")
+    .aggregate([
+        {
+            $match: {
+                estacion_id: "pantitlan",
+                fecha: {
+                    $gte: ISODate("2025-01-01T00:00:00Z"),
+                    $lt: ISODate("2026-01-01T00:00:00Z")
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$fecha",
+                afluenciaTotal: {
+                    $sum: "$afluencia.total"
+                }
+            }
+        },
+        {
+            $sort: {
+                _id: 1
+            }
         }
-    })
-    .sort({
-        fecha: 1
-    })
-    .explain("executionStats");
+    ]);
 
-print("\n=== CONSULTA B: Pantitlán durante 2025 ===");
+const cursorB = consultaB.stages[0].$cursor;
+const ultimaEtapaB =
+    consultaB.stages[consultaB.stages.length - 1];
+
+print("\n=== CONSULTA B: Pantitlán por fecha durante 2025 ===");
 
 printjson({
-    plan: consultaB.queryPlanner.winningPlan,
-    nReturned: consultaB.executionStats.nReturned,
-    totalKeysExamined: consultaB.executionStats.totalKeysExamined,
-    totalDocsExamined: consultaB.executionStats.totalDocsExamined,
-    executionTimeMillis: consultaB.executionStats.executionTimeMillis
+    plan: cursorB.queryPlanner.winningPlan,
+    nReturnedFinal: ultimaEtapaB.nReturned,
+    totalKeysExamined:
+        cursorB.executionStats.totalKeysExamined,
+    totalDocsExamined:
+        cursorB.executionStats.totalDocsExamined,
+    executionTimeMillis:
+        cursorB.executionStats.executionTimeMillis,
+    etapasPipeline: consultaB.stages.map(
+        etapa => Object.keys(etapa)[0]
+    )
 });
 
 
 /* =========================================================
    CONSULTA C
-   Diez estaciones con mayor afluencia durante 2025
+   Diez estaciones con mayor afluencia durante 2025.
+
+   Esta consulta no se modifica.
    ========================================================= */
 
 const consultaC = db.afluencia_diaria
@@ -96,16 +152,20 @@ const consultaC = db.afluencia_diaria
     ]);
 
 const cursorC = consultaC.stages[0].$cursor;
-const ultimaEtapaC = consultaC.stages[consultaC.stages.length - 1];
+const ultimaEtapaC =
+    consultaC.stages[consultaC.stages.length - 1];
 
 print("\n=== CONSULTA C: Top 10 estaciones durante 2025 ===");
 
 printjson({
     plan: cursorC.queryPlanner.winningPlan,
     nReturnedFinal: ultimaEtapaC.nReturned,
-    totalKeysExamined: cursorC.executionStats.totalKeysExamined,
-    totalDocsExamined: cursorC.executionStats.totalDocsExamined,
-    executionTimeMillis: cursorC.executionStats.executionTimeMillis,
+    totalKeysExamined:
+        cursorC.executionStats.totalKeysExamined,
+    totalDocsExamined:
+        cursorC.executionStats.totalDocsExamined,
+    executionTimeMillis:
+        cursorC.executionStats.executionTimeMillis,
     etapasPipeline: consultaC.stages.map(
         etapa => Object.keys(etapa)[0]
     )

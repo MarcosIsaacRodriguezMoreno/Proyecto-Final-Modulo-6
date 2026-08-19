@@ -1,14 +1,14 @@
 === MEDICIONES ANTES DE CREAR ÍNDICES ===
 
-=== CONSULTA A: Línea 1 durante 2025 ===
+=== CONSULTA A: Línea 1 por fecha durante 2025 ===
 {
   plan: {
-    stage: 'SORT',
-    sortPattern: {
-      fecha: 1
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      fecha: 1,
+      _id: 0
     },
-    memLimit: 104857600,
-    type: 'simple',
     inputStage: {
       stage: 'COLLSCAN',
       filter: {
@@ -33,21 +33,26 @@
       direction: 'forward'
     }
   },
-  nReturned: 7300,
+  nReturnedFinal: Long('365'),
   totalKeysExamined: 0,
   totalDocsExamined: 379470,
-  executionTimeMillis: 167
+  executionTimeMillis: 1415,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
 }
 
-=== CONSULTA B: Pantitlán durante 2025 ===
+=== CONSULTA B: Pantitlán por fecha durante 2025 ===
 {
   plan: {
-    stage: 'SORT',
-    sortPattern: {
-      fecha: 1
+    stage: 'PROJECTION_DEFAULT',
+    transformBy: {
+      'afluencia.total': 1,
+      fecha: 1,
+      _id: 0
     },
-    memLimit: 104857600,
-    type: 'simple',
     inputStage: {
       stage: 'COLLSCAN',
       filter: {
@@ -72,10 +77,15 @@
       direction: 'forward'
     }
   },
-  nReturned: 1460,
+  nReturnedFinal: Long('365'),
   totalKeysExamined: 0,
   totalDocsExamined: 379470,
-  executionTimeMillis: 129
+  executionTimeMillis: 206,
+  etapasPipeline: [
+    '$cursor',
+    '$group',
+    '$sort'
+  ]
 }
 
 === CONSULTA C: Top 10 estaciones durante 2025 ===
@@ -109,7 +119,7 @@
   nReturnedFinal: Long('10'),
   totalKeysExamined: 0,
   totalDocsExamined: 379470,
-  executionTimeMillis: 230,
+  executionTimeMillis: 452,
   etapasPipeline: [
     '$cursor',
     '$group',

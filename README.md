@@ -55,7 +55,8 @@ Inicialmente se plantean las siguientes preguntas:
 
 4. **¿Qué porcentaje de la afluencia total corresponde a accesos por gratuidad en cada estación del Metro y cómo varía este porcentaje a lo largo del periodo analizado?**
 
-5. **¿Cómo se distribuyen geográficamente las estaciones con mayores niveles de afluencia y qué consultas espaciales pueden realizarse utilizando su ubicación?**
+5. **¿Cuáles son las estaciones ubicadas a una distancia máxima de dos kilómetros del Zócalo de la Ciudad de México y cuál fue su afluencia acumulada durante 2025?**
+
 
 ---
 
@@ -2272,4 +2273,151 @@ metadatos estables y geográficos
         ↓
 estaciones
 ```
+# Implementación en MongoDB y avance de la Semana 2
+
+El modelo documental fue implementado en la base:
+
+```text
+metro_afluencia
+```
+
+con las colecciones:
+
+```text
+afluencia_diaria
+estaciones
+```
+
+La carga final contiene:
+
+| Colección          | Documentos |
+| ------------------ | ---------: |
+| `afluencia_diaria` |    379,470 |
+| `estaciones`       |        163 |
+
+Se verificó que:
+
+* `fecha` se almacenara como BSON `date`;
+* el periodo comprendiera del 1 de enero de 2021 al 30 de abril de 2026;
+* existieran 195 documentos por fecha;
+* no hubiera valores negativos;
+* `afluencia.total` fuera igual a la suma de sus componentes;
+* no existieran duplicados para `fecha + estacion_id + linea`; y
+* todos los `estacion_id` existieran en `estaciones`.
+
+---
+
+## Reproducción de la carga
+
+El archivo:
+
+```text
+scripts/cargar_proyecto.js
+```
+
+permite reproducir la creación y carga desde una sesión autenticada de `mongosh`.
+
+Cada integrante debe:
+
+1. clonar el repositorio;
+2. descomprimir `procesados.zip`;
+3. entrar a MongoDB con sus propias credenciales; y
+4. ejecutar desde la raíz del proyecto:
+
+```javascript
+load("scripts/cargar_proyecto.js")
+```
+
+El cargador:
+
+* verifica los archivos requeridos;
+* crea las colecciones y validadores;
+* carga los archivos NDJSON por lotes;
+* comprueba los conteos finales; y
+* se detiene si la base ya contiene colecciones.
+
+El script no almacena conexiones, usuarios ni contraseñas.
+
+---
+
+# Estrategia de indexación
+
+Se evaluaron tres patrones de consulta:
+
+1. evolución de la Línea 1 durante 2025;
+2. historial de Pantitlán durante 2025; y
+3. diez estaciones con mayor afluencia acumulada durante 2025.
+
+Antes de crear índices secundarios, las tres consultas utilizaban `COLLSCAN` y examinaban los 379,470 documentos.
+
+Se crearon:
+
+```javascript
+{ linea: 1, fecha: 1 }
+{ estacion_id: 1, fecha: 1 }
+{ fecha: 1 }
+```
+
+Los resultados fueron:
+
+| Consulta                       | Plan antes        | Plan después     | Documentos antes/después | Tiempo antes/después |
+| ------------------------------ | ----------------- | ---------------- | -----------------------: | -------------------: |
+| Línea 1 durante 2025           | `COLLSCAN + SORT` | `IXSCAN + FETCH` |          379,470 / 7,300 |          167 / 35 ms |
+| Pantitlán durante 2025         | `COLLSCAN + SORT` | `IXSCAN + FETCH` |          379,470 / 1,460 |           129 / 9 ms |
+| Top 10 estaciones durante 2025 | `COLLSCAN`        | `IXSCAN + FETCH` |         379,470 / 71,175 |         230 / 124 ms |
+
+En las dos primeras consultas también desapareció el `SORT` independiente, porque los índices compuestos permiten recuperar los documentos ordenados por fecha.
+
+En la tercera consulta, el índice temporal reduce el conjunto inicial, pero MongoDB todavía debe agrupar por estación y ordenar los resultados calculados.
+
+Los tiempos son orientativos y pueden variar. La evidencia principal es el cambio de `COLLSCAN` a `IXSCAN` y la reducción de `totalDocsExamined`.
+
+Los índices también tienen costos de almacenamiento, memoria y mantenimiento durante las escrituras. Por este motivo se crearon únicamente a partir de consultas relevantes.
+
+---
+
+# Pruebas del validador
+
+El `$jsonSchema` de `afluencia_diaria` se probó con:
+
+* 2 documentos válidos, ambos aceptados;
+* 1 documento sin `fecha`, rechazado;
+* 1 documento con `fecha` como cadena, rechazado;
+* 1 documento con afluencia negativa, rechazado; y
+* 1 documento sin `afluencia.total`, rechazado.
+
+Los dos documentos válidos utilizados para la prueba fueron eliminados al finalizar. La colección conservó sus 379,470 documentos reales.
+
+---
+
+# Archivos del avance
+
+```text
+scripts/
+├── cargar_proyecto.js
+├── consultas_antes_indices.js
+├── consultas_despues_indices.js
+├── crear_indices.js
+└── probar_validador_afluencia.js
+
+resultados/
+├── comparacion_indices.md
+├── medicion_antes_indices.txt
+├── medicion_despues_indices.txt
+└── pruebas_validador_afluencia.txt
+```
+
+Los archivos de `resultados/` conservan el detalle de las mediciones e interpretaciones, evitando extender innecesariamente este README.
+
+---
+
+# Siguientes etapas
+
+Quedan pendientes:
+
+* probar el cargador completo en una base limpia de otro integrante;
+* implementar los pipelines analíticos;
+* desarrollar la consulta geoespacial;
+* crear el índice `2dsphere` solamente cuando la consulta espacial lo justifique; y
+* documentar las conclusiones, limitaciones y posibles mejoras finales.
 

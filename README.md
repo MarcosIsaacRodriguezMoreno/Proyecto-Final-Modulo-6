@@ -2275,7 +2275,7 @@ estaciones
 ```
 # Implementación en MongoDB y avance de la Semana 2
 
-El modelo documental fue implementado en la base:
+El modelo fue implementado en la base:
 
 ```text
 metro_afluencia
@@ -2301,9 +2301,9 @@ Se verificó que:
 * el periodo comprendiera del 1 de enero de 2021 al 30 de abril de 2026;
 * existieran 195 documentos por fecha;
 * no hubiera valores negativos;
-* `afluencia.total` fuera igual a la suma de sus componentes;
+* `afluencia.total` fuera igual a la suma de boleto, prepago y gratuidad;
 * no existieran duplicados para `fecha + estacion_id + linea`; y
-* todos los `estacion_id` existieran en `estaciones`.
+* todos los `estacion_id` existieran en la colección `estaciones`.
 
 ---
 
@@ -2328,15 +2328,9 @@ Cada integrante debe:
 load("scripts/cargar_proyecto.js")
 ```
 
-El cargador:
+El cargador crea las colecciones y sus validadores, carga los archivos NDJSON por lotes y verifica los conteos finales.
 
-* verifica los archivos requeridos;
-* crea las colecciones y validadores;
-* carga los archivos NDJSON por lotes;
-* comprueba los conteos finales; y
-* se detiene si la base ya contiene colecciones.
-
-El script no almacena conexiones, usuarios ni contraseñas.
+El script no almacena conexiones, usuarios ni contraseñas. También se detiene si detecta colecciones existentes, evitando duplicar o sobrescribir datos.
 
 ---
 
@@ -2344,11 +2338,27 @@ El script no almacena conexiones, usuarios ni contraseñas.
 
 Se evaluaron tres patrones de consulta:
 
-1. evolución de la Línea 1 durante 2025;
-2. historial de Pantitlán durante 2025; y
+1. evolución diaria agregada de la Línea 1 durante 2025;
+2. historial diario agregado de Pantitlán durante 2025; y
 3. diez estaciones con mayor afluencia acumulada durante 2025.
 
-Antes de crear índices secundarios, las tres consultas utilizaban `COLLSCAN` y examinaban los 379,470 documentos.
+Las consultas A y B se implementaron como pipelines de agregación.
+
+La Consulta A:
+
+* filtra la Línea 1 y el periodo 2025;
+* agrupa por `fecha`;
+* suma `afluencia.total` de todas las estaciones de la línea; y
+* ordena los resultados por fecha.
+
+La Consulta B:
+
+* filtra `estacion_id = "pantitlan"` y el periodo 2025;
+* agrupa por `fecha`;
+* suma `afluencia.total` de las cuatro líneas de la estación física; y
+* ordena los resultados por fecha.
+
+Antes de crear índices secundarios, las consultas utilizaban `COLLSCAN` y examinaban los 379,470 documentos.
 
 Se crearon:
 
@@ -2360,19 +2370,27 @@ Se crearon:
 
 Los resultados fueron:
 
-| Consulta                       | Plan antes        | Plan después     | Documentos antes/después | Tiempo antes/después |
-| ------------------------------ | ----------------- | ---------------- | -----------------------: | -------------------: |
-| Línea 1 durante 2025           | `COLLSCAN + SORT` | `IXSCAN + FETCH` |          379,470 / 7,300 |          167 / 35 ms |
-| Pantitlán durante 2025         | `COLLSCAN + SORT` | `IXSCAN + FETCH` |          379,470 / 1,460 |           129 / 9 ms |
-| Top 10 estaciones durante 2025 | `COLLSCAN`        | `IXSCAN + FETCH` |         379,470 / 71,175 |         230 / 124 ms |
+| Consulta                                  | Plan antes | Plan después     | Resultados finales | Documentos antes/después | Tiempo antes/después |
+| ----------------------------------------- | ---------- | ---------------- | -----------------: | -----------------------: | -------------------: |
+| Línea 1 agrupada por fecha durante 2025   | `COLLSCAN` | `IXSCAN + FETCH` |                365 |          379,470 / 7,300 |        1,415 / 47 ms |
+| Pantitlán agrupado por fecha durante 2025 | `COLLSCAN` | `IXSCAN + FETCH` |                365 |          379,470 / 1,460 |          206 / 32 ms |
+| Top 10 estaciones durante 2025            | `COLLSCAN` | `IXSCAN + FETCH` |                 10 |         379,470 / 71,175 |         452 / 175 ms |
 
-En las dos primeras consultas también desapareció el `SORT` independiente, porque los índices compuestos permiten recuperar los documentos ordenados por fecha.
+En la Consulta A, los 7,300 documentos estación-línea de la Línea 1 se agrupan para producir 365 resultados, uno por cada fecha de 2025.
 
-En la tercera consulta, el índice temporal reduce el conjunto inicial, pero MongoDB todavía debe agrupar por estación y ordenar los resultados calculados.
+En la Consulta B, los 1,460 documentos de Pantitlán —cuatro líneas por 365 días— se agrupan para producir 365 resultados diarios correspondientes a la estación física.
 
-Los tiempos son orientativos y pueden variar. La evidencia principal es el cambio de `COLLSCAN` a `IXSCAN` y la reducción de `totalDocsExamined`.
+En ambas consultas permanecen las etapas `$group` y `$sort`, porque MongoDB debe sumar los valores por fecha y ordenar los resultados agregados. Los índices reducen el conjunto de documentos que llega a estas etapas, pero no eliminan el trabajo de agrupación.
 
-Los índices también tienen costos de almacenamiento, memoria y mantenimiento durante las escrituras. Por este motivo se crearon únicamente a partir de consultas relevantes.
+En la Consulta C, el índice temporal reduce el conjunto inicial a los documentos de 2025, pero MongoDB todavía debe agrupar por estación y ordenar los resultados calculados.
+
+Los tiempos son orientativos y pueden variar. La evidencia principal es:
+
+* el cambio de `COLLSCAN` a `IXSCAN`;
+* la reducción de `totalDocsExamined`; y
+* la conservación de los resultados esperados.
+
+Los índices también tienen costos de almacenamiento, memoria y mantenimiento durante las escrituras. Por este motivo se crearon únicamente a partir de patrones relevantes.
 
 ---
 
@@ -2386,7 +2404,21 @@ El `$jsonSchema` de `afluencia_diaria` se probó con:
 * 1 documento con afluencia negativa, rechazado; y
 * 1 documento sin `afluencia.total`, rechazado.
 
-Los dos documentos válidos utilizados para la prueba fueron eliminados al finalizar. La colección conservó sus 379,470 documentos reales.
+Los documentos válidos utilizados para la prueba fueron eliminados al finalizar. La colección conservó sus 379,470 documentos reales.
+
+También se comprobó mediante una consulta de integridad que:
+
+```text
+afluencia.total
+=
+afluencia.boleto
++
+afluencia.prepago
++
+afluencia.gratuidad
+```
+
+No se encontraron documentos que incumplieran esta igualdad.
 
 ---
 
@@ -2407,7 +2439,7 @@ resultados/
 └── pruebas_validador_afluencia.txt
 ```
 
-Los archivos de `resultados/` conservan el detalle de las mediciones e interpretaciones, evitando extender innecesariamente este README.
+Los archivos de `resultados/` conservan el detalle completo de las mediciones y sus interpretaciones.
 
 ---
 
@@ -2415,9 +2447,10 @@ Los archivos de `resultados/` conservan el detalle de las mediciones e interpret
 
 Quedan pendientes:
 
-* probar el cargador completo en una base limpia de otro integrante;
-* implementar los pipelines analíticos;
+* implementar los pipelines analíticos restantes;
+* agregar pruebas específicas del validador de `estaciones`;
 * desarrollar la consulta geoespacial;
-* crear el índice `2dsphere` solamente cuando la consulta espacial lo justifique; y
-* documentar las conclusiones, limitaciones y posibles mejoras finales.
+* crear el índice `2dsphere` cuando la consulta espacial lo justifique; y
+* documentar conclusiones, limitaciones y mejoras finales.
+
 

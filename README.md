@@ -2422,6 +2422,183 @@ No se encontraron documentos que incumplieran esta igualdad.
 
 ---
 
+---
+
+# Implementación geoespacial y avance de la Semana 3
+
+Se implementó el componente geoespacial del proyecto sobre la colección `estaciones`, utilizando el campo `ubicacion` para representar las coordenadas de cada estación.
+
+La consulta desarrollada responde la siguiente pregunta:
+
+> ¿Cuáles son las estaciones ubicadas a una distancia máxima de 2 km del Zócalo de la Ciudad de México y cuál fue su afluencia acumulada durante 2025?
+
+---
+
+## Validación geoespacial
+
+El campo `ubicacion` de la colección `estaciones` utiliza una geometría GeoJSON de tipo `Point`:
+
+```javascript
+ubicacion: {
+    type: "Point",
+    coordinates: [longitud, latitud]
+}
+```
+
+El `$jsonSchema` de la colección valida:
+
+* que `ubicacion` sea un objeto;
+* que `type` sea `Point`;
+* que `coordinates` contenga exactamente dos valores;
+* que la longitud se encuentre entre -180 y 180; y
+* que la latitud se encuentre entre -90 y 90.
+
+Para comprobar el funcionamiento del validador se realizaron cuatro casos de prueba:
+
+* una geometría `Point` válida, aceptada correctamente;
+* una geometría de tipo `Polygon`, rechazada;
+* una longitud fuera del intervalo permitido, rechazada; y
+* una latitud fuera del intervalo permitido, rechazada.
+
+Los documentos utilizados durante las pruebas fueron eliminados al finalizar, por lo que no permanecen registros de prueba en la colección.
+
+Las pruebas se encuentran en:
+
+```text
+scripts/probar_validador_estaciones_geo.js
+```
+
+---
+
+## Índice geoespacial `2dsphere`
+
+Para soportar consultas espaciales sobre las estaciones se creó un índice `2dsphere` sobre el campo `ubicacion`:
+
+```javascript
+db.estaciones.createIndex(
+    { ubicacion: "2dsphere" },
+    { name: "idx_estaciones_ubicacion_2dsphere" }
+);
+```
+
+El índice fue incorporado al archivo:
+
+```text
+scripts/crear_indices.js
+```
+
+Su creación se verificó mediante `getIndexes()`, obteniendo el índice:
+
+```text
+idx_estaciones_ubicacion_2dsphere
+```
+
+sobre:
+
+```javascript
+{ ubicacion: "2dsphere" }
+```
+
+Este índice permite realizar consultas de proximidad utilizando las coordenadas GeoJSON almacenadas en la colección `estaciones`.
+
+---
+
+## Consulta geoespacial
+
+La consulta utiliza `$geoNear` para localizar estaciones a una distancia máxima de 2,000 metros del Zócalo de la Ciudad de México.
+
+El punto de referencia utilizado es:
+
+```javascript
+{
+    type: "Point",
+    coordinates: [-99.133331, 19.432781]
+}
+```
+
+Las coordenadas mantienen el orden requerido por GeoJSON:
+
+```text
+[longitud, latitud]
+```
+
+La selección espacial se realiza mediante:
+
+```javascript
+$geoNear: {
+    near: zocalo,
+    key: "ubicacion",
+    distanceField: "distancia_m",
+    maxDistance: 2000,
+    spherical: true
+}
+```
+
+Posteriormente, mediante `$lookup`, las estaciones seleccionadas se relacionan con la colección `afluencia_diaria`.
+
+Para cada estación se calcula la suma de `afluencia.total` correspondiente al periodo:
+
+```text
+2025-01-01 <= fecha < 2026-01-01
+```
+
+De esta forma, el pipeline combina la selección geoespacial con la afluencia acumulada durante 2025.
+
+La consulta se encuentra en:
+
+```text
+scripts/consulta_geoespacial.js
+```
+
+---
+
+## Casos de control de la consulta geoespacial
+
+Para comprobar el comportamiento de la selección espacial se utilizaron dos estaciones conocidas:
+
+* `zocalo_tenochtitlan` como estación cercana que debía quedar incluida;
+* `acatitla` como estación lejana que debía quedar excluida.
+
+Las pruebas confirmaron que:
+
+* `zocalo_tenochtitlan` fue incluida correctamente;
+* `acatitla` fue excluida correctamente;
+* se seleccionaron 20 estaciones;
+* ninguna estación seleccionada supera los 2,000 metros; y
+* la mayor distancia obtenida fue de 1,872.67 metros.
+
+Las pruebas se encuentran en:
+
+```text
+scripts/probar_consulta_geoespacial.js
+```
+
+---
+
+## Resultados geoespaciales
+
+La consulta identificó **20 estaciones** dentro de una distancia máxima de 2 km del Zócalo.
+
+Entre las estaciones seleccionadas, **Pino Suárez** presentó la mayor afluencia acumulada durante 2025, con:
+
+```text
+19,941,218
+```
+
+Los resultados completos, incluyendo las estaciones seleccionadas, sus distancias y la afluencia acumulada durante 2025, se encuentran en:
+
+```text
+resultados/resultados_geoespaciales.md
+```
+
+---
+
+## Limitaciones del análisis geoespacial
+
+La distancia obtenida representa proximidad geográfica entre coordenadas y no equivale directamente a la distancia recorrida dentro de la red del Metro, al tiempo de traslado ni a la accesibilidad.
+
+Asimismo, la afluencia acumulada permite comparar las estaciones seleccionadas, pero no demuestra que la cercanía al Zócalo sea la causa de una mayor o menor afluencia.
+
 # Archivos del avance
 
 ```text
@@ -2430,27 +2607,28 @@ scripts/
 ├── consultas_antes_indices.js
 ├── consultas_despues_indices.js
 ├── crear_indices.js
-└── probar_validador_afluencia.js
+├── probar_validador_afluencia.js
+├── probar_validador_estaciones_geo.js
+├── consulta_geoespacial.js
+└── probar_consulta_geoespacial.js
 
 resultados/
 ├── comparacion_indices.md
 ├── medicion_antes_indices.txt
 ├── medicion_despues_indices.txt
-└── pruebas_validador_afluencia.txt
+├── pruebas_validador_afluencia.txt
+└── resultados_geoespaciales.md
 ```
 
-Los archivos de `resultados/` conservan el detalle completo de las mediciones y sus interpretaciones.
 
----
 
 # Siguientes etapas
 
 Quedan pendientes:
 
 * implementar los pipelines analíticos restantes;
-* agregar pruebas específicas del validador de `estaciones`;
-* desarrollar la consulta geoespacial;
-* crear el índice `2dsphere` cuando la consulta espacial lo justifique; y
-* documentar conclusiones, limitaciones y mejoras finales.
+* completar los análisis temporales del proyecto;
+* documentar las conclusiones generales; y
+* establecer las limitaciones y posibles mejoras finales.
 
 

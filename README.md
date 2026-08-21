@@ -2599,6 +2599,163 @@ La distancia obtenida representa proximidad geográfica entre coordenadas y no e
 
 Asimismo, la afluencia acumulada permite comparar las estaciones seleccionadas, pero no demuestra que la cercanía al Zócalo sea la causa de una mayor o menor afluencia.
 
+---
+
+# Análisis temporal y avance de la Semana 4
+
+Se implementó un análisis temporal sobre la colección `afluencia_diaria` para estudiar la evolución de la afluencia del Metro durante 2025.
+
+La consulta desarrollada responde la siguiente pregunta:
+
+> ¿Cómo evolucionó la afluencia total del Metro de la Ciudad de México durante 2025?
+
+---
+
+## Estructura temporal
+
+El análisis utiliza el campo `fecha` de la colección `afluencia_diaria`.
+
+Se verificó que los **379,470 documentos** de la colección almacenan este campo utilizando BSON `Date`.
+
+El periodo disponible comprende:
+
+```text
+Fecha mínima: 2021-01-01
+Fecha máxima: 2026-04-30
+```
+
+Las características temporales utilizadas son:
+
+* campo temporal: `fecha`;
+* tipo BSON: `Date`;
+* granularidad: diaria; y
+* zona horaria utilizada: UTC.
+
+---
+
+## Consulta por intervalo
+
+Para analizar exclusivamente 2025 se utiliza el intervalo semiabierto:
+
+```text
+[2025-01-01, 2026-01-01)
+```
+
+La condición utilizada es:
+
+```javascript
+fecha: {
+    $gte: ISODate("2025-01-01T00:00:00Z"),
+    $lt: ISODate("2026-01-01T00:00:00Z")
+}
+```
+
+Este intervalo incluye el 1 de enero de 2025 y excluye el 1 de enero de 2026.
+
+La selección contiene **71,175 documentos** correspondientes a 2025.
+
+---
+
+## Índice para la consulta temporal
+
+La colección `afluencia_diaria` ya dispone del índice:
+
+```javascript
+{
+    fecha: 1
+}
+```
+
+con nombre:
+
+```text
+idx_fecha
+```
+
+Este índice corresponde al campo utilizado para restringir el intervalo temporal, por lo que no fue necesario incorporar un índice adicional para este análisis.
+
+---
+
+## Pipeline temporal
+
+El pipeline agrupa las observaciones por mes mediante `$dateToString` y calcula como indicador la suma de `afluencia.total`.
+
+Los periodos se generan con el formato:
+
+```text
+2025-01
+2025-02
+...
+2025-12
+```
+
+La consulta produjo los **12 periodos mensuales esperados**.
+
+El pipeline se encuentra en:
+
+```text
+scripts/consulta_temporal.js
+```
+
+---
+
+## Pruebas de la consulta temporal
+
+Para comprobar el comportamiento del intervalo se utilizaron fechas conocidas.
+
+Las pruebas confirmaron que:
+
+* `2025-01-01` fue incluida correctamente como límite inferior;
+* `2025-12-31` fue incluida correctamente dentro del intervalo;
+* `2026-01-01` existe en la base, pero fue excluida correctamente por el límite superior `$lt`; y
+* el agrupamiento produjo exactamente 12 periodos mensuales.
+
+Las pruebas se encuentran en:
+
+```text
+scripts/probar_consulta_temporal.js
+```
+
+---
+
+## Resultados temporales
+
+La afluencia mensual obtenida para 2025 fue:
+
+| Periodo | Afluencia total |
+|---|---:|
+| 2025-01 | 96,554,069 |
+| 2025-02 | 94,273,723 |
+| 2025-03 | 104,863,384 |
+| 2025-04 | 97,589,918 |
+| 2025-05 | 104,309,186 |
+| 2025-06 | 100,152,730 |
+| 2025-07 | 103,165,584 |
+| 2025-08 | 105,741,529 |
+| 2025-09 | 105,273,705 |
+| 2025-10 | 115,572,139 |
+| 2025-11 | 120,635,447 |
+| 2025-12 | 107,239,178 |
+
+El menor valor mensual se registró en **febrero**, con **94,273,723**, mientras que **noviembre** presentó la mayor afluencia, con **120,635,447**.
+
+Los resultados completos se encuentran en:
+
+```text
+resultados/resultados_temporales.md
+```
+
+---
+
+## Limitaciones del análisis temporal
+
+El análisis permite observar la evolución mensual de la afluencia durante 2025, pero no permite determinar por sí solo las causas de las variaciones entre periodos.
+
+Para explicar estas diferencias sería necesario incorporar información adicional, como días festivos, eventos, interrupciones del servicio u otras condiciones externas.
+
+---
+
+
 # Archivos del avance
 
 ```text
@@ -2610,25 +2767,31 @@ scripts/
 ├── probar_validador_afluencia.js
 ├── probar_validador_estaciones_geo.js
 ├── consulta_geoespacial.js
-└── probar_consulta_geoespacial.js
+├──  probar_consulta_geoespacial.js
+├── consulta_temporal.js
+└── probar_consulta_temporal.js
 
 resultados/
 ├── comparacion_indices.md
 ├── medicion_antes_indices.txt
 ├── medicion_despues_indices.txt
 ├── pruebas_validador_afluencia.txt
-└── resultados_geoespaciales.md
+├── resultados_geoespaciales.md
+└── resultados_temporales.md
 ```
 
+Los archivos de `resultados/` conservan el detalle de las mediciones, pruebas, resultados e interpretaciones realizadas.
 
-
+---
 # Siguientes etapas
 
-Quedan pendientes:
+Quedan pendientes (semana 5 final):
 
-* implementar los pipelines analíticos restantes;
-* completar los análisis temporales del proyecto;
-* documentar las conclusiones generales; y
-* establecer las limitaciones y posibles mejoras finales.
+* desarrollar el avance de búsqueda correspondiente a la Semana 5
+* implementar las medidas de seguridad y privacidad;
+* definir roles y privilegios mínimos;
+* documentar el manejo seguro de credenciales;
+* integrar y comprobar la ejecución completa del proyecto; y
+* documentar las conclusiones generales y posibles mejoras finales.
 
 

@@ -2756,7 +2756,7 @@ Para explicar estas diferencias sería necesario incorporar información adicion
 ---
 
 
-# Archivos del avance
+# Archivos finales del proyecto
 
 ```text
 scripts/
@@ -2772,7 +2772,8 @@ scripts/
 ├── probar_consulta_temporal.js
 ├── seguridad_crear_usuarios.js
 ├── seguridad_probar_consulta.js
-└── salida_minimizada.js
+├── salida_minimizada.js
+└── verificar_integracion_final.js
 
 resultados/
 ├── comparacion_indices.md
@@ -2780,12 +2781,19 @@ resultados/
 ├── medicion_despues_indices.txt
 ├── pruebas_validador_afluencia.txt
 ├── resultados_geoespaciales.md
-└── resultados_temporales.md
+├── resultados_temporales.md
+├── creacion_indices_final.txt
+├── prueba_seguridad_consulta.txt
+├── salida_minimizada_consulta.txt
+└── verificacion_integracion_final.txt
 ```
 
-Los archivos de `resultados/` conservan el detalle de las mediciones, pruebas, resultados e interpretaciones realizadas.
+Los archivos de `scripts/` permiten reproducir la carga, consultas, índices, validaciones, análisis especializados, configuración de seguridad y verificación final.
+
+Los archivos de `resultados/` conservan las mediciones, pruebas, salidas e interpretaciones obtenidas durante la ejecución.
 
 ---
+
 # Semana 5 — Búsqueda, seguridad, privacidad e integración
 
 ## 1. Decisión sobre búsqueda textual y búsqueda por patrones
@@ -2794,7 +2802,7 @@ Se evaluó la pertinencia de incorporar búsquedas mediante índices de texto (`
 
 Se decidió no implementar estas técnicas porque el conjunto de datos no contiene campos de texto libre relevantes para las preguntas del proyecto.
 
-Los principales atributos son estructurados:
+Los principales atributos utilizados son estructurados:
 
 * `fecha`;
 * `estacion_id`;
@@ -2858,9 +2866,9 @@ La unidad de análisis es la afluencia agregada por estación, línea y fecha, n
 
 ## 3. Privacidad y minimización de datos
 
-Debido a que el proyecto utiliza información pública y agregada, no es necesario aplicar técnicas de anonimización, seudonimización o enmascaramiento sobre los datos de afluencia.
+Debido a que el proyecto utiliza información pública y agregada, no es necesario aplicar anonimización, seudonimización o enmascaramiento sobre los datos de afluencia.
 
-Sin embargo, se aplica el principio de minimización: el sistema almacena únicamente la información necesaria para responder las preguntas definidas.
+Sin embargo, se aplica el principio de minimización: el sistema almacena únicamente la información necesaria para responder las preguntas planteadas.
 
 La colección `afluencia_diaria` contiene:
 
@@ -3055,14 +3063,14 @@ El rol no incluye la acción `remove`, por lo que no permite eliminar documentos
 
 Los usuarios se almacenan en la base de autenticación `admin`.
 
-MongoDB confirmó que los cuatro usuarios utilizan los mecanismos:
+MongoDB confirmó que utilizan:
 
 ```text
 SCRAM-SHA-1
 SCRAM-SHA-256
 ```
 
-El script comprueba si el rol y los usuarios ya existen antes de crearlos, evitando duplicados.
+El script comprueba si el rol y los usuarios ya existen antes de intentar crearlos, evitando duplicados.
 
 ---
 
@@ -3097,7 +3105,7 @@ Las cadenas de conexión del entorno objetivo deberán habilitar TLS y validar e
 
 La información almacenada también deberá protegerse mediante cifrado del volumen o del sistema de archivos donde se encuentren los archivos de MongoDB y sus respaldos.
 
-El entorno local utilizado para este proyecto tiene fines académicos y demostrativos. Por ello, la implementación se concentra en autenticación, roles, privilegio mínimo y manejo seguro de credenciales.
+El entorno local utilizado para este proyecto tiene fines académicos y demostrativos. La implementación se concentra en autenticación, roles, privilegio mínimo y manejo seguro de credenciales.
 
 La configuración de certificados TLS y cifrado del almacenamiento dependerá de la infraestructura del entorno objetivo.
 
@@ -3116,8 +3124,6 @@ implementa una consulta para usuarios de lectura que devuelve únicamente:
 * nombre de la estación; y
 * líneas asociadas.
 
-La consulta excluye `_id`, ubicación y demás información que no se necesita en la salida.
-
 La proyección utilizada es:
 
 ```javascript
@@ -3128,9 +3134,9 @@ La proyección utilizada es:
 }
 ```
 
-Los resultados se ordenan por nombre y se limitan a diez documentos.
+La consulta excluye `_id`, ubicación y demás campos que no son necesarios. Los resultados se ordenan por nombre y se limitan a diez documentos.
 
-La ejecución con `marcos_consulta` devolvió correctamente diez estaciones y únicamente los campos autorizados.
+La ejecución con `marcos_consulta` devolvió correctamente diez estaciones y únicamente los campos definidos.
 
 La evidencia se encuentra en:
 
@@ -3150,7 +3156,7 @@ La prueba se encuentra en:
 scripts/seguridad_probar_consulta.js
 ```
 
-Se ejecutó utilizando `marcos_consulta`, usuario con rol `read`.
+Se ejecutó con `marcos_consulta`, usuario con rol `read`.
 
 La prueba comprobó:
 
@@ -3159,7 +3165,7 @@ La prueba comprobó:
 3. una lectura permitida; y
 4. una inserción rechazada.
 
-El resultado obtenido fue:
+El resultado fue:
 
 ```text
 CORRECTO: la lectura fue permitida.
@@ -3181,63 +3187,78 @@ Por lo tanto, la separación entre un rol diseñado y una denegación realmente 
 
 ---
 
-## 13. Orden de ejecución del proyecto
+## 13. Orden completo de ejecución
 
 Desde una base disponible para una carga nueva, el orden recomendado es el siguiente.
 
-### 1. Crear colecciones, validadores y cargar los datos
+### 1. Preparar los datos
 
-Antes de ejecutar la carga debe descomprimirse `procesados.zip`.
+Descomprimir:
+
+```text
+procesados.zip
+```
+
+La carpeta resultante debe quedar en la raíz del proyecto:
+
+```text
+procesados/
+├── afluencia_diaria.ndjson
+├── estaciones.ndjson
+└── estaciones_sin_coordenadas.ndjson
+```
+
+### 2. Crear colecciones, validadores y cargar los datos
 
 ```javascript
 load("scripts/cargar_proyecto.js")
 ```
 
-### 2. Ejecutar las mediciones sin índices secundarios
+### 3. Ejecutar mediciones sin índices secundarios
 
 ```javascript
 load("scripts/consultas_antes_indices.js")
 ```
 
-### 3. Crear y verificar los índices
+### 4. Crear y verificar los índices
 
 ```javascript
 load("scripts/crear_indices.js")
 ```
 
-### 4. Repetir las mediciones con índices
+### 5. Repetir las mediciones con índices
 
 ```javascript
 load("scripts/consultas_despues_indices.js")
 ```
 
-### 5. Probar el validador de afluencia
+### 6. Probar el validador de afluencia
 
 ```javascript
 load("scripts/probar_validador_afluencia.js")
 ```
 
-### 6. Probar el validador geoespacial
+### 7. Probar el validador geoespacial
 
 ```javascript
 load("scripts/probar_validador_estaciones_geo.js")
 ```
 
-### 7. Ejecutar y probar el análisis temporal
+### 8. Ejecutar y probar el análisis temporal
 
 ```javascript
 load("scripts/consulta_temporal.js")
 load("scripts/probar_consulta_temporal.js")
 ```
 
-### 8. Ejecutar y probar el análisis geoespacial
+### 9. Ejecutar y probar el análisis geoespacial
 
 ```javascript
 load("scripts/consulta_geoespacial.js")
 load("scripts/probar_consulta_geoespacial.js")
 ```
 
-### 9. Crear roles y usuarios
+### 10. Crear roles y usuarios
 
 Este paso requiere un usuario con permisos para administrar roles y usuarios:
 
@@ -3245,7 +3266,7 @@ Este paso requiere un usuario con permisos para administrar roles y usuarios:
 load("scripts/seguridad_crear_usuarios.js")
 ```
 
-### 10. Probar el privilegio mínimo
+### 11. Probar el privilegio mínimo
 
 En una sesión nueva con un usuario de consulta:
 
@@ -3253,7 +3274,7 @@ En una sesión nueva con un usuario de consulta:
 load("scripts/seguridad_probar_consulta.js")
 ```
 
-### 11. Ejecutar la salida minimizada
+### 12. Ejecutar la salida minimizada
 
 Con el mismo usuario de consulta:
 
@@ -3261,7 +3282,7 @@ Con el mismo usuario de consulta:
 load("scripts/salida_minimizada.js")
 ```
 
-### 12. Verificar la integración final
+### 13. Verificar la integración final
 
 Con un usuario administrador del proyecto:
 
@@ -3277,19 +3298,6 @@ correctas: 13
 errores: 0
 estado: PROYECTO VERIFICADO
 ```
-
-La verificación integral comprueba:
-
-* colecciones;
-* cantidad de documentos;
-* validadores;
-* índices;
-* rango temporal;
-* consistencia de los totales;
-* ausencia de valores negativos;
-* relación entre afluencia y estaciones;
-* análisis temporal; y
-* consulta geoespacial.
 
 ---
 
@@ -3311,11 +3319,7 @@ resultados/
 └── verificacion_integracion_final.txt
 ```
 
-Cada evidencia indica:
-
-* qué se ejecutó;
-* qué resultado produjo; y
-* qué demuestra.
+Cada evidencia indica qué se ejecutó, qué resultado produjo y qué demuestra.
 
 No se incluyen contraseñas ni cadenas de conexión.
 
@@ -3329,9 +3333,28 @@ El archivo:
 scripts/verificar_integracion_final.js
 ```
 
-se ejecutó con un usuario administrador del proyecto.
+comprueba automáticamente:
 
-La primera ejecución identificó que el índice geoespacial todavía no había sido creado en la base local. Después de ejecutar `scripts/crear_indices.js`, se incorporó:
+* existencia de las colecciones;
+* cantidad de documentos;
+* validadores JSON Schema;
+* índices simples, compuestos y geoespaciales;
+* rango temporal;
+* consistencia de los totales;
+* ausencia de valores negativos;
+* relación entre afluencia y estaciones;
+* análisis temporal; y
+* consulta geoespacial.
+
+La primera ejecución identificó que el índice geoespacial todavía no estaba creado en la base local.
+
+Después de ejecutar:
+
+```javascript
+load("scripts/crear_indices.js")
+```
+
+se incorporó:
 
 ```text
 idx_estaciones_ubicacion_2dsphere
@@ -3346,17 +3369,16 @@ errores: 0
 estado: PROYECTO VERIFICADO
 ```
 
-Las trece comprobaciones confirmaron:
+Las comprobaciones confirmaron:
 
-* existencia de las colecciones;
 * 379,470 documentos de afluencia;
 * 163 estaciones;
-* validadores JSON Schema;
-* índices simples, compuestos y geoespaciales;
-* rango temporal correcto;
-* totales consistentes;
-* ausencia de valores negativos;
-* referencias válidas entre colecciones;
+* dos colecciones con validadores;
+* todos los índices esperados;
+* periodo del 1 de enero de 2021 al 30 de abril de 2026;
+* cero totales incorrectos;
+* cero valores negativos;
+* cero referencias faltantes;
 * doce meses en el análisis temporal; y
 * veinte estaciones en la consulta geoespacial.
 
@@ -3368,7 +3390,7 @@ resultados/verificacion_integracion_final.txt
 
 ---
 
-## 16. Estado de la Semana 5
+## 16. Estado final de la Semana 5
 
 | Elemento                                         | Estado     |
 | ------------------------------------------------ | ---------- |

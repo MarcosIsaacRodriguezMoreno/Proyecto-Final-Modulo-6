@@ -1,0 +1,54 @@
+=== CREACIÓN DE ÍNDICES ===
+
+=== ÍNDICES DE AFLUENCIA DIARIA ===
+[
+  {
+    v: 2,
+    key: {
+      _id: 1
+    },
+    name: '_id_'
+  },
+  {
+    v: 2,
+    key: {
+      linea: 1,
+      fecha: 1
+    },
+    name: 'idx_linea_fecha'
+  },
+  {
+    v: 2,
+    key: {
+      estacion_id: 1,
+      fecha: 1
+    },
+    name: 'idx_estacion_fecha'
+  },
+  {
+    v: 2,
+    key: {
+      fecha: 1
+    },
+    name: 'idx_fecha'
+  }
+]
+
+=== ÍNDICES DE ESTACIONES ===
+[
+  {
+    v: 2,
+    key: {
+      _id: 1
+    },
+    name: '_id_'
+  },
+  {
+    v: 2,
+    key: {
+      ubicacion: '2dsphere'
+    },
+    name: 'idx_estaciones_ubicacion_2dsphere',
+    '2dsphereIndexVersion': 3
+  }
+]

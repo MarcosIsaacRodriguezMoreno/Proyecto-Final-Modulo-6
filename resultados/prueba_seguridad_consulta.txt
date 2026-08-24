@@ -1,0 +1,33 @@
+=== PRUEBA DE PRIVILEGIO MÍNIMO ===
+
+=== USUARIO AUTENTICADO ===
+{
+  usuarios: [
+    {
+      user: 'marcos_consulta',
+      db: 'admin'
+    }
+  ],
+  roles: [
+    {
+      role: 'read',
+      db: 'metro_afluencia'
+    }
+  ]
+}
+
+=== PRUEBA DE LECTURA ===
+CORRECTO: la lectura fue permitida.
+{
+  fecha: ISODate('2021-01-01T00:00:00.000Z'),
+  estacion_id: 'moctezuma',
+  linea: 'Linea 1',
+  afluencia: {
+    total: 4382
+  }
+}
+
+=== PRUEBA DE ESCRITURA ===
+CORRECTO: la escritura fue rechazada por falta de privilegios.
+Código: 13
+Motivo: not authorized on metro_afluencia to execute command { insert: "afluencia_diaria", documents: [ { _id: "PRUEBA-SEGURIDAD-1787535631807", fecha: new Date(1735689600000), estacion_id: "prueba_seguridad", linea: "Linea 1", afluencia: { boleto: 0, prepago: 0, gratuidad: 0, total: 0 } } ], ordered: true, lsid: { id: UUID("4f8f5ca2-da79-4009-af6f-f3e35fa614e5") }, $db: "metro_afluencia" }

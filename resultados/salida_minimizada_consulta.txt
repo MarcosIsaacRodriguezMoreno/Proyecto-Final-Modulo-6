@@ -1,0 +1,66 @@
+=== SALIDA MINIMIZADA PARA USUARIO DE CONSULTA ===
+[
+  {
+    nombre: 'Acatitla',
+    lineas: [
+      'Linea A'
+    ]
+  },
+  {
+    nombre: 'Aculco',
+    lineas: [
+      'Linea 8'
+    ]
+  },
+  {
+    nombre: 'Agrícola Oriental',
+    lineas: [
+      'Linea A'
+    ]
+  },
+  {
+    nombre: 'Allende',
+    lineas: [
+      'Linea 2'
+    ]
+  },
+  {
+    nombre: 'Apatlaco',
+    lineas: [
+      'Linea 8'
+    ]
+  },
+  {
+    nombre: 'Aquiles Serdán',
+    lineas: [
+      'Linea 7'
+    ]
+  },
+  {
+    nombre: 'Aragón',
+    lineas: [
+      'Linea 5'
+    ]
+  },
+  {
+    nombre: 'Atlalilco',
+    lineas: [
+      'Linea 12',
+      'Linea 8'
+    ]
+  },
+  {
+    nombre: 'Auditorio',
+    lineas: [
+      'Linea 7'
+    ]
+  },
+  {
+    nombre: 'Autobuses del Norte',
+    lineas: [
+      'Linea 5'
+    ]
+  }
+]
+
+Documentos mostrados: 10

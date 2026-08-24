@@ -2790,11 +2790,11 @@ Los archivos de `resultados/` conservan el detalle de las mediciones, pruebas, r
 
 ## 1. Decisión sobre búsqueda textual y búsqueda por patrones
 
-Como parte del diseño del proyecto se evaluó la pertinencia de incorporar mecanismos de búsqueda mediante índices de texto (`$text`) o expresiones regulares (`regex`).
+Se evaluó la pertinencia de incorporar búsquedas mediante índices de texto (`$text`) o expresiones regulares (`regex`).
 
-Se decidió no implementar búsqueda textual ni búsqueda mediante expresiones regulares porque el conjunto de datos no contiene campos de texto libre relevantes para las preguntas analíticas del proyecto.
+Se decidió no implementar estas técnicas porque el conjunto de datos no contiene campos de texto libre relevantes para las preguntas del proyecto.
 
-Los principales atributos utilizados son estructurados:
+Los principales atributos son estructurados:
 
 * `fecha`;
 * `estacion_id`;
@@ -2803,7 +2803,7 @@ Los principales atributos utilizados son estructurados:
 * `ubicacion`; y
 * `nombre` de la estación.
 
-Los campos textuales, como el nombre de una estación o la línea, funcionan como identificadores o categorías conocidas y pueden consultarse mediante coincidencias exactas.
+Los nombres de estaciones, líneas e identificadores funcionan como categorías conocidas y pueden consultarse mediante coincidencias exactas.
 
 Por ejemplo:
 
@@ -2813,7 +2813,7 @@ Por ejemplo:
 }
 ```
 
-Las preguntas principales del proyecto se resuelven mediante:
+Las preguntas del proyecto se resuelven mediante:
 
 * filtros por igualdad;
 * rangos temporales;
@@ -2822,15 +2822,13 @@ Las preguntas principales del proyecto se resuelven mediante:
 * índices simples y compuestos; y
 * consultas geoespaciales.
 
-Incorporar un índice `text` o utilizar expresiones regulares no resolvería una necesidad real del proyecto y añadiría complejidad sin aportar una mejora relevante a los patrones de consulta definidos.
+Incorporar un índice `text` o utilizar expresiones regulares añadiría complejidad sin resolver una necesidad real del proyecto.
 
 ---
 
 ## 2. Clasificación de la información
 
-Los datos analizados en el proyecto provienen de fuentes públicas y abiertas.
-
-La clasificación utilizada es la siguiente:
+Los datos analizados provienen de fuentes públicas y abiertas.
 
 | Información               | Clasificación        | Justificación                                                 |
 | ------------------------- | -------------------- | ------------------------------------------------------------- |
@@ -2844,7 +2842,7 @@ La clasificación utilizada es la siguiente:
 
 El conjunto de datos no contiene información personal identificable de las personas usuarias del Metro.
 
-En particular, no se almacenan:
+No se almacenan:
 
 * nombres de pasajeros;
 * identificadores personales;
@@ -2854,7 +2852,7 @@ En particular, no se almacenan:
 * ubicaciones individuales; ni
 * historiales de viaje asociados con personas.
 
-La unidad de análisis corresponde a afluencia agregada por estación, línea y fecha, no a pasajeros individuales.
+La unidad de análisis es la afluencia agregada por estación, línea y fecha, no los pasajeros individuales.
 
 ---
 
@@ -2862,7 +2860,7 @@ La unidad de análisis corresponde a afluencia agregada por estación, línea y 
 
 Debido a que el proyecto utiliza información pública y agregada, no es necesario aplicar técnicas de anonimización, seudonimización o enmascaramiento sobre los datos de afluencia.
 
-Sin embargo, se aplica el principio de minimización de datos: el sistema almacena únicamente la información necesaria para responder las preguntas analíticas definidas.
+Sin embargo, se aplica el principio de minimización: el sistema almacena únicamente la información necesaria para responder las preguntas definidas.
 
 La colección `afluencia_diaria` contiene:
 
@@ -2873,7 +2871,7 @@ linea
 afluencia
 ```
 
-La colección `estaciones` contiene los metadatos estables:
+La colección `estaciones` contiene:
 
 ```text
 _id
@@ -2882,41 +2880,40 @@ lineas
 ubicacion
 ```
 
-Esta separación evita duplicar información geográfica y descriptiva dentro de los 379,470 documentos de afluencia diaria.
+Esta separación evita duplicar información geográfica y descriptiva dentro de los 379,470 documentos de afluencia.
 
-También permite que las consultas devuelvan solamente los campos necesarios para cada análisis.
+También permite que cada consulta devuelva solamente los campos necesarios.
 
 ---
 
 ## 4. Seguridad de la base de datos
 
-Aunque los datos almacenados son públicos, esto no significa que cualquier usuario deba tener permisos para modificar la base de datos.
+Aunque los datos almacenados son públicos, no todos los usuarios deben tener permisos para modificar la base.
 
 Los controles de acceso protegen:
 
 * la integridad de los documentos;
-* la estructura de las colecciones;
+* las colecciones;
 * los índices;
 * los validadores;
 * la configuración de MongoDB; y
 * las credenciales de acceso.
 
-Se aplica el principio de mínimo privilegio, mediante el cual cada usuario recibe solamente los permisos necesarios para realizar sus actividades.
+Se aplica el principio de mínimo privilegio: cada usuario recibe únicamente los permisos necesarios para cumplir su función.
 
 ---
 
 ## 5. Roles definidos
 
-Se definieron tres perfiles de acceso.
-
 ### Administrador
 
-Es responsable de la configuración y mantenimiento general de la base de datos.
+Es responsable de la configuración y mantenimiento general.
 
-Puede realizar operaciones de:
+Puede realizar:
 
 * lectura;
-* escritura;
+* inserción;
+* actualización;
 * eliminación;
 * administración de colecciones;
 * administración de índices;
@@ -2929,8 +2926,8 @@ Es responsable de incorporar o actualizar información.
 
 Puede:
 
-* consultar documentos;
-* insertar documentos; y
+* consultar;
+* insertar; y
 * actualizar documentos.
 
 No puede:
@@ -2945,9 +2942,9 @@ Para este perfil se creó el rol personalizado `cargaMantenimiento`.
 
 ### Consulta o analista
 
-Es responsable de ejecutar las consultas y análisis del proyecto.
+Es responsable de ejecutar las consultas y análisis.
 
-Dispone únicamente de permisos de lectura y puede ejecutar:
+Puede realizar:
 
 * consultas de afluencia;
 * aggregation pipelines de lectura;
@@ -2989,7 +2986,7 @@ Esta asignación se utiliza con fines de diseño y demostración del modelo de s
 | Administrar usuarios          |       Sí      |           No          |          No         |
 | Administrar roles             |       Sí      |           No          |          No         |
 
-La matriz sigue el principio de mínimo privilegio: ningún usuario recibe permisos adicionales si no son necesarios para cumplir su función.
+La matriz sigue el principio de mínimo privilegio: ningún usuario recibe permisos adicionales si no son necesarios.
 
 ---
 
@@ -3001,16 +2998,16 @@ La configuración se encuentra en:
 scripts/seguridad_crear_usuarios.js
 ```
 
-El script utiliza las bases administrativas correspondientes sin almacenar credenciales:
+El script utiliza:
 
 ```javascript
 const adminDB = db.getSiblingDB("admin");
 const metroDB = db.getSiblingDB("metro_afluencia");
 ```
 
-### Rol personalizado de carga y mantenimiento
+### Rol personalizado
 
-El rol `cargaMantenimiento` se crea en la base `metro_afluencia` con las acciones:
+El rol `cargaMantenimiento` se creó en `metro_afluencia` con las acciones:
 
 ```javascript
 [
@@ -3020,9 +3017,7 @@ El rol `cargaMantenimiento` se crea en la base `metro_afluencia` con las accione
 ]
 ```
 
-El rol no incluye la acción `remove`, por lo que no permite eliminar documentos.
-
-Conceptualmente, su definición es:
+Su definición es:
 
 ```javascript
 metroDB.createRole({
@@ -3047,9 +3042,9 @@ metroDB.createRole({
 });
 ```
 
-### Usuarios
+El rol no incluye la acción `remove`, por lo que no permite eliminar documentos.
 
-Los perfiles utilizan los siguientes roles:
+### Usuarios creados
 
 | Usuario           | Rol                  | Base del rol      |
 | ----------------- | -------------------- | ----------------- |
@@ -3058,30 +3053,39 @@ Los perfiles utilizan los siguientes roles:
 | `marcos_consulta` | `read`               | `metro_afluencia` |
 | `manuel_consulta` | `read`               | `metro_afluencia` |
 
-El script comprueba si el rol y los usuarios ya existen antes de intentar crearlos, evitando duplicarlos.
+Los usuarios se almacenan en la base de autenticación `admin`.
+
+MongoDB confirmó que los cuatro usuarios utilizan los mecanismos:
+
+```text
+SCRAM-SHA-1
+SCRAM-SHA-256
+```
+
+El script comprueba si el rol y los usuarios ya existen antes de crearlos, evitando duplicados.
 
 ---
 
 ## 9. Manejo seguro de credenciales
 
-Las credenciales no se almacenan directamente dentro del código fuente.
+Las contraseñas no se almacenan dentro del código fuente.
 
-Para solicitar cada contraseña durante la ejecución se utiliza:
+El script las solicita durante la ejecución mediante:
 
 ```javascript
 passwordPrompt()
 ```
 
-Las contraseñas reales, cadenas de conexión y otros secretos de autenticación no deben almacenarse en:
+Las contraseñas reales, cadenas de conexión y otros secretos no deben incluirse en:
 
 * scripts `.js`;
 * archivos `.md`;
 * archivos de resultados;
-* capturas de pantalla;
+* capturas;
 * commits; ni
 * repositorios Git.
 
-Cada integrante debe conectarse utilizando sus propias credenciales y proporcionar la contraseña de manera interactiva.
+Cada integrante debe proporcionar su contraseña directamente en la terminal.
 
 ---
 
@@ -3093,11 +3097,13 @@ Las cadenas de conexión del entorno objetivo deberán habilitar TLS y validar e
 
 La información almacenada también deberá protegerse mediante cifrado del volumen o del sistema de archivos donde se encuentren los archivos de MongoDB y sus respaldos.
 
-El entorno local utilizado para este proyecto tiene fines académicos y demostrativos. Por ello, la implementación se concentra en autenticación, roles, privilegio mínimo y manejo seguro de credenciales. La configuración completa de certificados TLS y cifrado del almacenamiento dependerá de la infraestructura del entorno objetivo.
+El entorno local utilizado para este proyecto tiene fines académicos y demostrativos. Por ello, la implementación se concentra en autenticación, roles, privilegio mínimo y manejo seguro de credenciales.
+
+La configuración de certificados TLS y cifrado del almacenamiento dependerá de la infraestructura del entorno objetivo.
 
 ---
 
-## 11. Salida minimizada para usuarios de consulta
+## 11. Salida minimizada
 
 El archivo:
 
@@ -3105,14 +3111,14 @@ El archivo:
 scripts/salida_minimizada.js
 ```
 
-implementa una consulta que devuelve únicamente:
+implementa una consulta para usuarios de lectura que devuelve únicamente:
 
 * nombre de la estación; y
 * líneas asociadas.
 
-No devuelve el identificador interno ni el documento completo.
+La consulta excluye `_id`, ubicación y demás información que no se necesita en la salida.
 
-La consulta utiliza una proyección explícita:
+La proyección utilizada es:
 
 ```javascript
 {
@@ -3122,9 +3128,17 @@ La consulta utiliza una proyección explícita:
 }
 ```
 
-También limita la salida a diez documentos y los ordena por nombre.
+Los resultados se ordenan por nombre y se limitan a diez documentos.
 
-La minimización de la salida no sustituye el control de acceso, sino que lo complementa.
+La ejecución con `marcos_consulta` devolvió correctamente diez estaciones y únicamente los campos autorizados.
+
+La evidencia se encuentra en:
+
+```text
+resultados/salida_minimizada_consulta.txt
+```
+
+La minimización no sustituye el control de acceso, sino que lo complementa.
 
 ---
 
@@ -3136,34 +3150,44 @@ La prueba se encuentra en:
 scripts/seguridad_probar_consulta.js
 ```
 
-Debe ejecutarse utilizando un usuario con rol de consulta.
+Se ejecutó utilizando `marcos_consulta`, usuario con rol `read`.
 
-La prueba comprueba:
+La prueba comprobó:
 
-1. el usuario autenticado y sus roles;
-2. una lectura permitida sobre `afluencia_diaria`; y
-3. una inserción que debe ser rechazada por falta de privilegios.
+1. el usuario autenticado;
+2. los roles asignados;
+3. una lectura permitida; y
+4. una inserción rechazada.
 
-El comportamiento esperado es:
+El resultado obtenido fue:
 
 ```text
 CORRECTO: la lectura fue permitida.
 CORRECTO: la escritura fue rechazada por falta de privilegios.
+Código: 13
 ```
 
-El script distingue una denegación por autorización de otros errores posibles.
+El código `13` corresponde a una denegación por falta de autorización.
 
-Si una inserción fuera permitida inesperadamente, lo reportará como error y tratará de eliminar únicamente el documento de prueba. Si el usuario no dispone de permiso para eliminarlo, mostrará su `_id` para que un administrador pueda realizar la limpieza.
+La inserción fue rechazada antes de almacenar el documento de prueba.
 
-La denegación solamente debe documentarse como comprobada después de ejecutar el script con autenticación habilitada y un usuario de consulta.
+La evidencia se encuentra en:
+
+```text
+resultados/prueba_seguridad_consulta.txt
+```
+
+Por lo tanto, la separación entre un rol diseñado y una denegación realmente comprobada quedó demostrada en ejecución.
 
 ---
 
 ## 13. Orden de ejecución del proyecto
 
-Desde una base disponible para una carga nueva, el orden recomendado es:
+Desde una base disponible para una carga nueva, el orden recomendado es el siguiente.
 
-### 1. Crear las colecciones, aplicar validadores y cargar los datos
+### 1. Crear colecciones, validadores y cargar los datos
+
+Antes de ejecutar la carga debe descomprimirse `procesados.zip`.
 
 ```javascript
 load("scripts/cargar_proyecto.js")
@@ -3213,9 +3237,9 @@ load("scripts/consulta_geoespacial.js")
 load("scripts/probar_consulta_geoespacial.js")
 ```
 
-### 9. Crear los roles y usuarios
+### 9. Crear roles y usuarios
 
-Este paso debe ejecutarse con un usuario que tenga permisos para administrar roles y usuarios:
+Este paso requiere un usuario con permisos para administrar roles y usuarios:
 
 ```javascript
 load("scripts/seguridad_crear_usuarios.js")
@@ -3223,7 +3247,7 @@ load("scripts/seguridad_crear_usuarios.js")
 
 ### 10. Probar el privilegio mínimo
 
-Después se debe abrir una sesión nueva con uno de los usuarios de consulta y ejecutar:
+En una sesión nueva con un usuario de consulta:
 
 ```javascript
 load("scripts/seguridad_probar_consulta.js")
@@ -3237,13 +3261,41 @@ Con el mismo usuario de consulta:
 load("scripts/salida_minimizada.js")
 ```
 
-Los archivos de datos contenidos en `procesados.zip` deben descomprimirse antes de ejecutar `cargar_proyecto.js`.
+### 12. Verificar la integración final
+
+Con un usuario administrador del proyecto:
+
+```javascript
+load("scripts/verificar_integracion_final.js")
+```
+
+El resultado esperado es:
+
+```text
+comprobaciones: 13
+correctas: 13
+errores: 0
+estado: PROYECTO VERIFICADO
+```
+
+La verificación integral comprueba:
+
+* colecciones;
+* cantidad de documentos;
+* validadores;
+* índices;
+* rango temporal;
+* consistencia de los totales;
+* ausencia de valores negativos;
+* relación entre afluencia y estaciones;
+* análisis temporal; y
+* consulta geoespacial.
 
 ---
 
 ## 14. Evidencias del proyecto
 
-Las evidencias disponibles se encuentran en:
+Las evidencias se encuentran en:
 
 ```text
 resultados/
@@ -3252,36 +3304,118 @@ resultados/
 ├── medicion_despues_indices.txt
 ├── pruebas_validador_afluencia.txt
 ├── resultados_geoespaciales.md
-└── resultados_temporales.md
+├── resultados_temporales.md
+├── creacion_indices_final.txt
+├── prueba_seguridad_consulta.txt
+├── salida_minimizada_consulta.txt
+└── verificacion_integracion_final.txt
 ```
 
-Después de ejecutar las pruebas de seguridad se deberá incorporar la salida correspondiente, sin incluir contraseñas ni cadenas de conexión.
-
-Cada evidencia debe indicar:
+Cada evidencia indica:
 
 * qué se ejecutó;
 * qué resultado produjo; y
 * qué demuestra.
 
+No se incluyen contraseñas ni cadenas de conexión.
+
 ---
 
-## 15. Estado de la Semana 5
+## 15. Verificación integral final
 
-| Elemento                                         | Estado                    |
-| ------------------------------------------------ | ------------------------- |
-| Evaluación de `$text` y regex                    | Completado                |
-| Justificación de no implementar búsqueda textual | Completado                |
-| Clasificación de datos                           | Completado                |
-| Identificación de datos personales               | Completado                |
-| Estrategia de minimización                       | Completado                |
-| Matriz de roles                                  | Completado                |
-| Principio de mínimo privilegio                   | Completado                |
-| Estrategia para credenciales                     | Completado                |
-| Diseño de usuarios MongoDB                       | Completado                |
-| Rol personalizado de carga                       | Completado                |
-| Consideraciones de cifrado                       | Completado                |
-| Salida minimizada para consulta                  | Completado                |
-| Orden completo de ejecución                      | Completado                |
-| Prueba real de permisos                          | Pendiente de ejecución    |
-| Evidencia de la prueba de seguridad              | Pendiente de ejecución    |
-| Integración reproducible final                   | Pendiente de comprobación |
+El archivo:
+
+```text
+scripts/verificar_integracion_final.js
+```
+
+se ejecutó con un usuario administrador del proyecto.
+
+La primera ejecución identificó que el índice geoespacial todavía no había sido creado en la base local. Después de ejecutar `scripts/crear_indices.js`, se incorporó:
+
+```text
+idx_estaciones_ubicacion_2dsphere
+```
+
+La verificación se ejecutó nuevamente y produjo:
+
+```text
+comprobaciones: 13
+correctas: 13
+errores: 0
+estado: PROYECTO VERIFICADO
+```
+
+Las trece comprobaciones confirmaron:
+
+* existencia de las colecciones;
+* 379,470 documentos de afluencia;
+* 163 estaciones;
+* validadores JSON Schema;
+* índices simples, compuestos y geoespaciales;
+* rango temporal correcto;
+* totales consistentes;
+* ausencia de valores negativos;
+* referencias válidas entre colecciones;
+* doce meses en el análisis temporal; y
+* veinte estaciones en la consulta geoespacial.
+
+La evidencia se encuentra en:
+
+```text
+resultados/verificacion_integracion_final.txt
+```
+
+---
+
+## 16. Estado de la Semana 5
+
+| Elemento                                         | Estado     |
+| ------------------------------------------------ | ---------- |
+| Evaluación de `$text` y regex                    | Completado |
+| Justificación de no implementar búsqueda textual | Completado |
+| Clasificación de datos                           | Completado |
+| Identificación de datos personales               | Completado |
+| Estrategia de minimización                       | Completado |
+| Matriz de roles                                  | Completado |
+| Principio de mínimo privilegio                   | Completado |
+| Estrategia para credenciales                     | Completado |
+| Diseño de usuarios MongoDB                       | Completado |
+| Rol personalizado de carga                       | Completado |
+| Consideraciones de cifrado                       | Completado |
+| Salida minimizada para consulta                  | Completado |
+| Prueba real de permisos                          | Completado |
+| Evidencia de seguridad                           | Completado |
+| Orden completo de ejecución                      | Completado |
+| Integración reproducible final                   | Completado |
+
+---
+
+## 17. Conclusiones generales
+
+El proyecto implementó una solución documental funcional en MongoDB para almacenar y analizar la afluencia histórica del Metro de la Ciudad de México.
+
+El modelo final integra 379,470 documentos de afluencia diaria y 163 estaciones. La separación entre mediciones temporales y metadatos geográficos evita repetir información estable y permite relacionar ambas colecciones mediante `estacion_id`.
+
+Los índices redujeron los documentos examinados por las consultas principales. El análisis temporal produjo los doce periodos mensuales de 2025 y el análisis geoespacial identificó veinte estaciones dentro de una distancia máxima de dos kilómetros del Zócalo.
+
+Los validadores controlan tipos, campos obligatorios, valores no negativos y geometrías GeoJSON. La seguridad se implementó mediante usuarios diferenciados, un rol personalizado de carga, privilegio mínimo, credenciales fuera del código y salidas minimizadas.
+
+La prueba realizada con `marcos_consulta` confirmó que un usuario de lectura puede consultar información, pero no puede insertar documentos.
+
+La verificación integral final terminó con trece comprobaciones correctas y cero errores.
+
+### Limitación principal
+
+La información permite analizar cantidades y patrones de afluencia, pero no explica por sí misma las causas de las variaciones.
+
+El conjunto de datos no incluye capacidad de trenes, interrupciones del servicio, eventos, días festivos, tiempos de traslado ni información individual de pasajeros.
+
+Las distancias geoespaciales representan proximidad entre coordenadas y no equivalen a distancia recorrida dentro de la red ni a tiempo de traslado.
+
+### Mejora posible
+
+Como mejora futura se podrían incorporar calendarios de días festivos, eventos, cierres temporales e interrupciones del servicio para analizar su relación con los cambios de afluencia.
+
+También podría automatizarse la incorporación de nuevos periodos y ejecutar las verificaciones de integridad después de cada actualización.
+

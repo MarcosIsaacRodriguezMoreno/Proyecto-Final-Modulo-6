@@ -2789,20 +2789,20 @@ Los archivos de `resultados/` conservan el detalle de las mediciones, pruebas, r
 
 Como parte del diseño del proyecto se evaluó la pertinencia de incorporar mecanismos de búsqueda mediante índices de texto (`$text`) o expresiones regulares (`regex`).
 
-Se decidió no implementar búsqueda textual ni búsqueda mediante expresiones regulares, debido a que el conjunto de datos no contiene campos de texto libre relevantes para las preguntas analíticas del proyecto.
+Se decidió no implementar búsqueda textual ni búsqueda mediante expresiones regulares porque el conjunto de datos no contiene campos de texto libre relevantes para las preguntas analíticas del proyecto.
 
 Los principales atributos utilizados son estructurados:
 
-- `fecha`
-- `estacion_id`
-- `linea`
-- `afluencia`
-- `ubicacion`
-- `nombre` de la estación
+* `fecha`;
+* `estacion_id`;
+* `linea`;
+* `afluencia`;
+* `ubicacion`; y
+* `nombre` de la estación.
 
 Los campos textuales, como el nombre de una estación o la línea, funcionan como identificadores o categorías conocidas y pueden consultarse mediante coincidencias exactas.
 
-Por ejemplo, una estación puede localizarse mediante:
+Por ejemplo:
 
 ```javascript
 {
@@ -2810,14 +2810,14 @@ Por ejemplo, una estación puede localizarse mediante:
 }
 ```
 
-Por lo tanto, las preguntas principales del proyecto se resuelven mediante:
+Las preguntas principales del proyecto se resuelven mediante:
 
-- filtros por igualdad;
-- rangos temporales;
-- aggregation pipelines;
-- agrupaciones;
-- índices compuestos;
-- consultas geoespaciales.
+* filtros por igualdad;
+* rangos temporales;
+* aggregation pipelines;
+* agrupaciones;
+* índices simples y compuestos; y
+* consultas geoespaciales.
 
 Incorporar un índice `text` o utilizar expresiones regulares no resolvería una necesidad real del proyecto y añadiría complejidad sin aportar una mejora relevante a los patrones de consulta definidos.
 
@@ -2825,31 +2825,31 @@ Incorporar un índice `text` o utilizar expresiones regulares no resolvería una
 
 ## 2. Clasificación de la información
 
-Los datos analizados en el proyecto se clasifican principalmente como información pública, debido a que provienen de fuentes públicas y abiertas.
+Los datos analizados en el proyecto provienen de fuentes públicas y abiertas.
 
 La clasificación utilizada es la siguiente:
 
-| Información | Clasificación | Justificación |
-|---|---|---|
-| Afluencia diaria | Pública | Proviene de información pública de afluencia del Metro |
-| Nombre de estación | Pública | Forma parte de la información pública de la red |
-| Línea | Pública | Información pública de la red |
-| Coordenadas de estaciones | Pública | Derivadas de información geográfica pública |
-| Indicadores calculados | Pública derivada | Se obtienen mediante agregaciones de información pública |
-| Scripts y modelo MongoDB | Interna del proyecto | Son productos desarrollados por el equipo |
-| Usuarios y contraseñas | Confidencial | Son elementos de autenticación y no forman parte de los datos |
+| Información               | Clasificación        | Justificación                                                 |
+| ------------------------- | -------------------- | ------------------------------------------------------------- |
+| Afluencia diaria          | Pública              | Proviene de información pública de afluencia del Metro        |
+| Nombre de estación        | Pública              | Forma parte de la información pública de la red               |
+| Línea                     | Pública              | Información pública de la red                                 |
+| Coordenadas de estaciones | Pública              | Se obtienen de información geográfica pública                 |
+| Indicadores calculados    | Pública derivada     | Se obtienen mediante agregaciones de información pública      |
+| Scripts y modelo MongoDB  | Interna del proyecto | Son productos desarrollados por el equipo                     |
+| Usuarios y contraseñas    | Confidencial         | Son elementos de autenticación y no forman parte de los datos |
 
-El conjunto de datos utilizado no contiene información personal identificable de los usuarios del Metro.
+El conjunto de datos no contiene información personal identificable de las personas usuarias del Metro.
 
 En particular, no se almacenan:
 
-- nombres de pasajeros;
-- identificadores personales;
-- números de tarjeta;
-- información financiera individual;
-- trayectorias individuales;
-- ubicaciones individuales;
-- historiales de viaje asociados a personas.
+* nombres de pasajeros;
+* identificadores personales;
+* números de tarjeta;
+* información financiera individual;
+* trayectorias individuales;
+* ubicaciones individuales; ni
+* historiales de viaje asociados con personas.
 
 La unidad de análisis corresponde a afluencia agregada por estación, línea y fecha, no a pasajeros individuales.
 
@@ -2857,13 +2857,11 @@ La unidad de análisis corresponde a afluencia agregada por estación, línea y 
 
 ## 3. Privacidad y minimización de datos
 
-Debido a que el proyecto utiliza información pública y agregada, no es necesario aplicar técnicas de anonimización o enmascaramiento sobre los datos de afluencia.
+Debido a que el proyecto utiliza información pública y agregada, no es necesario aplicar técnicas de anonimización, seudonimización o enmascaramiento sobre los datos de afluencia.
 
-Sin embargo, se mantiene el principio de minimización de datos.
+Sin embargo, se aplica el principio de minimización de datos: el sistema almacena únicamente la información necesaria para responder las preguntas analíticas definidas.
 
-Esto significa que el sistema almacena únicamente la información necesaria para responder las preguntas analíticas definidas en el proyecto.
-
-La colección `afluencia_diaria` contiene únicamente información relacionada con:
+La colección `afluencia_diaria` contiene:
 
 ```text
 fecha
@@ -2872,7 +2870,7 @@ linea
 afluencia
 ```
 
-Mientras que la colección `estaciones` concentra los metadatos relativamente estables:
+La colección `estaciones` contiene los metadatos estables:
 
 ```text
 _id
@@ -2881,9 +2879,9 @@ lineas
 ubicacion
 ```
 
-Esta separación evita duplicar repetidamente información geográfica y descriptiva dentro de los documentos de afluencia.
+Esta separación evita duplicar información geográfica y descriptiva dentro de los 379,470 documentos de afluencia diaria.
 
-También permite que las consultas devuelvan únicamente los campos necesarios para cada análisis.
+También permite que las consultas devuelvan solamente los campos necesarios para cada análisis.
 
 ---
 
@@ -2891,16 +2889,16 @@ También permite que las consultas devuelvan únicamente los campos necesarios p
 
 Aunque los datos almacenados son públicos, esto no significa que cualquier usuario deba tener permisos para modificar la base de datos.
 
-Los controles de acceso tienen como objetivo proteger:
+Los controles de acceso protegen:
 
-- la integridad de los documentos;
-- la estructura de las colecciones;
-- los índices;
-- los validadores;
-- la configuración de MongoDB;
-- las credenciales de acceso.
+* la integridad de los documentos;
+* la estructura de las colecciones;
+* los índices;
+* los validadores;
+* la configuración de MongoDB; y
+* las credenciales de acceso.
 
-Se aplica conceptualmente el principio de mínimo privilegio, mediante el cual cada usuario recibe únicamente los permisos necesarios para realizar sus actividades.
+Se aplica el principio de mínimo privilegio, mediante el cual cada usuario recibe solamente los permisos necesarios para realizar sus actividades.
 
 ---
 
@@ -2910,58 +2908,64 @@ Se definieron tres perfiles de acceso.
 
 ### Administrador
 
-Responsable de la configuración y mantenimiento general de la base de datos.
+Es responsable de la configuración y mantenimiento general de la base de datos.
 
-Puede realizar operaciones relacionadas con:
+Puede realizar operaciones de:
 
-- lectura;
-- escritura;
-- administración de colecciones;
-- administración de índices;
-- validadores;
-- configuración;
-- administración de usuarios y roles.
+* lectura;
+* escritura;
+* eliminación;
+* administración de colecciones;
+* administración de índices;
+* modificación de validadores; y
+* administración de usuarios y roles.
 
-### Carga / mantenimiento
+### Carga y mantenimiento
 
-Responsable de incorporar o actualizar información.
+Es responsable de incorporar o actualizar información.
 
 Puede:
 
-- consultar documentos;
-- insertar documentos;
-- actualizar documentos.
+* consultar documentos;
+* insertar documentos; y
+* actualizar documentos.
 
-No requiere privilegios para administrar usuarios ni modificar la seguridad general de MongoDB.
+No puede:
 
-### Consulta / analista
+* eliminar documentos;
+* crear o eliminar colecciones;
+* crear o eliminar índices;
+* modificar validadores; ni
+* administrar usuarios o roles.
 
-Responsable de ejecutar las consultas y análisis del proyecto.
+Para este perfil se creó el rol personalizado `cargaMantenimiento`.
 
-Dispone únicamente de permisos de lectura.
+### Consulta o analista
 
-Puede ejecutar:
+Es responsable de ejecutar las consultas y análisis del proyecto.
 
-- consultas de afluencia;
-- aggregation pipelines;
-- análisis temporal;
-- consultas geoespaciales;
-- consultas por estación;
-- consultas por línea;
-- indicadores agregados.
+Dispone únicamente de permisos de lectura y puede ejecutar:
 
-No requiere permisos para insertar, actualizar o eliminar documentos.
+* consultas de afluencia;
+* aggregation pipelines de lectura;
+* análisis temporal;
+* consultas geoespaciales;
+* consultas por estación;
+* consultas por línea; e
+* indicadores agregados.
+
+No puede insertar, actualizar ni eliminar documentos.
 
 ---
 
-## 6. Asignación conceptual de roles
+## 6. Asignación de roles
 
-| Integrante | Rol |
-|---|---|
-| Ricardo | Administrador |
-| Sebastian | Carga / mantenimiento |
-| Marcos | Consulta / analista |
-| Manuel | Consulta / analista |
+| Integrante | Perfil                |
+| ---------- | --------------------- |
+| Ricardo    | Administrador         |
+| Sebastian  | Carga y mantenimiento |
+| Marcos     | Consulta o analista   |
+| Manuel     | Consulta o analista   |
 
 Esta asignación se utiliza con fines de diseño y demostración del modelo de seguridad.
 
@@ -2969,196 +2973,312 @@ Esta asignación se utiliza con fines de diseño y demostración del modelo de s
 
 ## 7. Matriz de privilegios
 
-| Operación | Administrador | Carga / mantenimiento | Consulta / analista |
-|---|:---:|:---:|:---:|
-| Consultar documentos | Sí | Sí | Sí |
-| Ejecutar aggregation pipelines de lectura | Sí | Sí | Sí |
-| Insertar documentos | Sí | Sí | No |
-| Actualizar documentos | Sí | Sí | No |
-| Eliminar documentos | Sí | No | No |
-| Crear colecciones | Sí | No | No |
-| Modificar validadores | Sí | No | No |
-| Crear/eliminar índices | Sí | No | No |
-| Administrar usuarios | Sí | No | No |
-| Administrar roles | Sí | No | No |
+| Operación                     | Administrador | Carga y mantenimiento | Consulta o analista |
+| ----------------------------- | :-----------: | :-------------------: | :-----------------: |
+| Consultar documentos          |       Sí      |           Sí          |          Sí         |
+| Ejecutar pipelines de lectura |       Sí      |           Sí          |          Sí         |
+| Insertar documentos           |       Sí      |           Sí          |          No         |
+| Actualizar documentos         |       Sí      |           Sí          |          No         |
+| Eliminar documentos           |       Sí      |           No          |          No         |
+| Crear colecciones             |       Sí      |           No          |          No         |
+| Modificar validadores         |       Sí      |           No          |          No         |
+| Crear o eliminar índices      |       Sí      |           No          |          No         |
+| Administrar usuarios          |       Sí      |           No          |          No         |
+| Administrar roles             |       Sí      |           No          |          No         |
 
-La matriz sigue el principio de mínimo privilegio: un usuario no recibe permisos adicionales si no son necesarios para cumplir su función.
-
----
-
-## 8. Diseño conceptual de usuarios en MongoDB
-
-La implementación de los usuarios puede realizarse utilizando los roles incorporados de MongoDB.
-
-### Administrador
-
-```javascript
-use admin
-
-db.createUser({
-    user: "ricardo_admin",
-    pwd: passwordPrompt(),
-    roles: [
-        {
-            role: "dbOwner",
-            db: "metro_afluencia"
-        }
-    ]
-})
-```
-
-### Carga y mantenimiento
-
-```javascript
-use admin
-
-db.createUser({
-    user: "sebastian_carga",
-    pwd: passwordPrompt(),
-    roles: [
-        {
-            role: "readWrite",
-            db: "metro_afluencia"
-        }
-    ]
-})
-```
-
-### Consulta — Marcos
-
-```javascript
-use admin
-
-db.createUser({
-    user: "marcos_consulta",
-    pwd: passwordPrompt(),
-    roles: [
-        {
-            role: "read",
-            db: "metro_afluencia"
-        }
-    ]
-})
-```
-
-### Consulta — Manuel
-
-```javascript
-use admin
-
-db.createUser({
-    user: "manuel_consulta",
-    pwd: passwordPrompt(),
-    roles: [
-        {
-            role: "read",
-            db: "metro_afluencia"
-        }
-    ]
-})
-```
-
-Estos comandos representan el diseño conceptual de seguridad.
-
-Su ejecución dependerá de que el entorno utilizado tenga habilitada la autenticación de MongoDB.
+La matriz sigue el principio de mínimo privilegio: ningún usuario recibe permisos adicionales si no son necesarios para cumplir su función.
 
 ---
 
-## 9. Manejo de credenciales
+## 8. Implementación de roles y usuarios
 
-Las credenciales no deben almacenarse directamente dentro del código fuente.
+La configuración se encuentra en:
 
-Por esta razón se propone utilizar:
+```text
+scripts/seguridad_crear_usuarios.js
+```
+
+El script utiliza las bases administrativas correspondientes sin almacenar credenciales:
+
+```javascript
+const adminDB = db.getSiblingDB("admin");
+const metroDB = db.getSiblingDB("metro_afluencia");
+```
+
+### Rol personalizado de carga y mantenimiento
+
+El rol `cargaMantenimiento` se crea en la base `metro_afluencia` con las acciones:
+
+```javascript
+[
+    "find",
+    "insert",
+    "update"
+]
+```
+
+El rol no incluye la acción `remove`, por lo que no permite eliminar documentos.
+
+Conceptualmente, su definición es:
+
+```javascript
+metroDB.createRole({
+    role: "cargaMantenimiento",
+
+    privileges: [
+        {
+            resource: {
+                db: "metro_afluencia",
+                collection: ""
+            },
+
+            actions: [
+                "find",
+                "insert",
+                "update"
+            ]
+        }
+    ],
+
+    roles: []
+});
+```
+
+### Usuarios
+
+Los perfiles utilizan los siguientes roles:
+
+| Usuario           | Rol                  | Base del rol      |
+| ----------------- | -------------------- | ----------------- |
+| `ricardo_admin`   | `dbOwner`            | `metro_afluencia` |
+| `sebastian_carga` | `cargaMantenimiento` | `metro_afluencia` |
+| `marcos_consulta` | `read`               | `metro_afluencia` |
+| `manuel_consulta` | `read`               | `metro_afluencia` |
+
+El script comprueba si el rol y los usuarios ya existen antes de intentar crearlos, evitando duplicarlos.
+
+---
+
+## 9. Manejo seguro de credenciales
+
+Las credenciales no se almacenan directamente dentro del código fuente.
+
+Para solicitar cada contraseña durante la ejecución se utiliza:
 
 ```javascript
 passwordPrompt()
 ```
 
-en lugar de escribir contraseñas directamente:
+Las contraseñas reales, cadenas de conexión y otros secretos de autenticación no deben almacenarse en:
 
-```javascript
-pwd: "contraseña"
-```
+* scripts `.js`;
+* archivos `.md`;
+* archivos de resultados;
+* capturas de pantalla;
+* commits; ni
+* repositorios Git.
 
-Las contraseñas reales, cadenas de conexión y demás secretos de autenticación no deben almacenarse en:
-
-- scripts `.js`;
-- archivos `.md`;
-- archivos de resultados;
-- capturas de pantalla;
-- commits;
-- repositorios Git.
+Cada integrante debe conectarse utilizando sus propias credenciales y proporcionar la contraseña de manera interactiva.
 
 ---
 
-## 10. Salidas minimizadas para usuarios de consulta
+## 10. Cifrado en el entorno objetivo
 
-Los usuarios con rol de consulta no necesitan recibir documentos completos cuando el análisis requiere únicamente ciertos campos.
+En un entorno productivo, las conexiones con MongoDB deben protegerse mediante TLS para cifrar la información transmitida entre los clientes y el servidor.
 
-Por ejemplo:
+Las cadenas de conexión del entorno objetivo deberán habilitar TLS y validar el certificado del servidor.
+
+La información almacenada también deberá protegerse mediante cifrado del volumen o del sistema de archivos donde se encuentren los archivos de MongoDB y sus respaldos.
+
+El entorno local utilizado para este proyecto tiene fines académicos y demostrativos. Por ello, la implementación se concentra en autenticación, roles, privilegio mínimo y manejo seguro de credenciales. La configuración completa de certificados TLS y cifrado del almacenamiento dependerá de la infraestructura del entorno objetivo.
+
+---
+
+## 11. Salida minimizada para usuarios de consulta
+
+El archivo:
+
+```text
+scripts/salida_minimizada.js
+```
+
+implementa una consulta que devuelve únicamente:
+
+* nombre de la estación; y
+* líneas asociadas.
+
+No devuelve el identificador interno ni el documento completo.
+
+La consulta utiliza una proyección explícita:
 
 ```javascript
-db.estaciones.find(
-    {},
-    {
-        _id: 0,
-        nombre: 1,
-        lineas: 1
-    }
-)
+{
+    _id: 0,
+    nombre: 1,
+    lineas: 1
+}
 ```
+
+También limita la salida a diez documentos y los ordena por nombre.
 
 La minimización de la salida no sustituye el control de acceso, sino que lo complementa.
 
 ---
 
-## 11. Prueba de privilegio mínimo
+## 12. Prueba de privilegio mínimo
 
-Cuando la autenticación esté habilitada, el comportamiento esperado para un usuario con rol de consulta será:
+La prueba se encuentra en:
 
-### Operación permitida
-
-```javascript
-db.afluencia_diaria.findOne()
+```text
+scripts/seguridad_probar_consulta.js
 ```
 
-### Operación no permitida
+Debe ejecutarse utilizando un usuario con rol de consulta.
 
-```javascript
-db.afluencia_diaria.insertOne({
-    fecha: ISODate("2025-01-01T00:00:00Z"),
-    estacion_id: "prueba",
-    linea: "Linea 1",
-    afluencia: {
-        boleto: 0,
-        prepago: 0,
-        gratuidad: 0,
-        total: 0
-    }
-})
+La prueba comprueba:
+
+1. el usuario autenticado y sus roles;
+2. una lectura permitida sobre `afluencia_diaria`; y
+3. una inserción que debe ser rechazada por falta de privilegios.
+
+El comportamiento esperado es:
+
+```text
+CORRECTO: la lectura fue permitida.
+CORRECTO: la escritura fue rechazada por falta de privilegios.
 ```
 
-La segunda operación deberá ser rechazada por falta de privilegios de escritura.
+El script distingue una denegación por autorización de otros errores posibles.
 
-Si el entorno utilizado no permite habilitar autenticación, la separación de roles se documentará como diseño de seguridad y se indicará explícitamente que la denegación no pudo comprobarse en ejecución.
+Si una inserción fuera permitida inesperadamente, lo reportará como error y tratará de eliminar únicamente el documento de prueba. Si el usuario no dispone de permiso para eliminarlo, mostrará su `_id` para que un administrador pueda realizar la limpieza.
+
+La denegación solamente debe documentarse como comprobada después de ejecutar el script con autenticación habilitada y un usuario de consulta.
 
 ---
 
-## 12. Estado de Semana 5
+## 13. Orden de ejecución del proyecto
 
-| Elemento | Estado |
-|---|---|
-| Evaluación de `$text` y regex | Completado |
-| Justificación de no implementar búsqueda textual | Completado |
-| Clasificación de datos | Completado |
-| Identificación de datos personales | Completado |
-| Estrategia de minimización | Completado |
-| Matriz de roles | Completado |
-| Principio de mínimo privilegio | Completado |
-| Estrategia para credenciales | Completado |
-| Diseño conceptual de usuarios MongoDB | Completado |
-| Salida minimizada para rol de consulta | Completado |
-| Prueba real de permisos | Pendiente de ejecución |
-| Integración reproducible final | Pendiente |
+Desde una base disponible para una carga nueva, el orden recomendado es:
 
+### 1. Crear las colecciones, aplicar validadores y cargar los datos
 
+```javascript
+load("scripts/cargar_proyecto.js")
+```
+
+### 2. Ejecutar las mediciones sin índices secundarios
+
+```javascript
+load("scripts/consultas_antes_indices.js")
+```
+
+### 3. Crear y verificar los índices
+
+```javascript
+load("scripts/crear_indices.js")
+```
+
+### 4. Repetir las mediciones con índices
+
+```javascript
+load("scripts/consultas_despues_indices.js")
+```
+
+### 5. Probar el validador de afluencia
+
+```javascript
+load("scripts/probar_validador_afluencia.js")
+```
+
+### 6. Probar el validador geoespacial
+
+```javascript
+load("scripts/probar_validador_estaciones_geo.js")
+```
+
+### 7. Ejecutar y probar el análisis temporal
+
+```javascript
+load("scripts/consulta_temporal.js")
+load("scripts/probar_consulta_temporal.js")
+```
+
+### 8. Ejecutar y probar el análisis geoespacial
+
+```javascript
+load("scripts/consulta_geoespacial.js")
+load("scripts/probar_consulta_geoespacial.js")
+```
+
+### 9. Crear los roles y usuarios
+
+Este paso debe ejecutarse con un usuario que tenga permisos para administrar roles y usuarios:
+
+```javascript
+load("scripts/seguridad_crear_usuarios.js")
+```
+
+### 10. Probar el privilegio mínimo
+
+Después se debe abrir una sesión nueva con uno de los usuarios de consulta y ejecutar:
+
+```javascript
+load("scripts/seguridad_probar_consulta.js")
+```
+
+### 11. Ejecutar la salida minimizada
+
+Con el mismo usuario de consulta:
+
+```javascript
+load("scripts/salida_minimizada.js")
+```
+
+Los archivos de datos contenidos en `procesados.zip` deben descomprimirse antes de ejecutar `cargar_proyecto.js`.
+
+---
+
+## 14. Evidencias del proyecto
+
+Las evidencias disponibles se encuentran en:
+
+```text
+resultados/
+├── comparacion_indices.md
+├── medicion_antes_indices.txt
+├── medicion_despues_indices.txt
+├── pruebas_validador_afluencia.txt
+├── resultados_geoespaciales.md
+└── resultados_temporales.md
+```
+
+Después de ejecutar las pruebas de seguridad se deberá incorporar la salida correspondiente, sin incluir contraseñas ni cadenas de conexión.
+
+Cada evidencia debe indicar:
+
+* qué se ejecutó;
+* qué resultado produjo; y
+* qué demuestra.
+
+---
+
+## 15. Estado de la Semana 5
+
+| Elemento                                         | Estado                    |
+| ------------------------------------------------ | ------------------------- |
+| Evaluación de `$text` y regex                    | Completado                |
+| Justificación de no implementar búsqueda textual | Completado                |
+| Clasificación de datos                           | Completado                |
+| Identificación de datos personales               | Completado                |
+| Estrategia de minimización                       | Completado                |
+| Matriz de roles                                  | Completado                |
+| Principio de mínimo privilegio                   | Completado                |
+| Estrategia para credenciales                     | Completado                |
+| Diseño de usuarios MongoDB                       | Completado                |
+| Rol personalizado de carga                       | Completado                |
+| Consideraciones de cifrado                       | Completado                |
+| Salida minimizada para consulta                  | Completado                |
+| Orden completo de ejecución                      | Completado                |
+| Prueba real de permisos                          | Pendiente de ejecución    |
+| Evidencia de la prueba de seguridad              | Pendiente de ejecución    |
+| Integración reproducible final                   | Pendiente de comprobación |

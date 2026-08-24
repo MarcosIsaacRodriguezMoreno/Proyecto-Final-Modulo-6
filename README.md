@@ -2767,9 +2767,12 @@ scripts/
 ├── probar_validador_afluencia.js
 ├── probar_validador_estaciones_geo.js
 ├── consulta_geoespacial.js
-├──  probar_consulta_geoespacial.js
+├── probar_consulta_geoespacial.js
 ├── consulta_temporal.js
-└── probar_consulta_temporal.js
+├── probar_consulta_temporal.js
+├── seguridad_crear_usuarios.js
+├── seguridad_probar_consulta.js
+└── salida_minimizada.js
 
 resultados/
 ├── comparacion_indices.md
